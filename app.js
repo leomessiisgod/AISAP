@@ -11,7 +11,7 @@
     var done = {}; D.tasks.forEach(function (t) { if (t.done) done[t.id] = true; });
     var sub = {}; D.submissions.forEach(function (s) { sub[s.id] = s.status; });
     var cond = {}; D.conditions.forEach(function (c) { cond[c.id] = c.def; });
-    return { role: null, theme: 'light', mode: 'approved', done: done, sub: sub, cond: cond, pre: { 'pre-biz': true, 'pre-profile': true, 'pre-privacy': true }, chats: [], active: null, nudge: true, req: {}, extraReq: [], inq: {}, iss: {}, log: [], assign: {}, sent: [] };
+    return { role: null, theme: 'light', mode: 'approved', done: done, sub: sub, cond: cond, pre: { 'pre-biz': true, 'pre-profile': true, 'pre-privacy': true }, chats: [], active: null, nudge: true, req: {}, extraReq: [], inq: {}, iss: {}, log: [], assign: {}, sent: [], notiRead: {}, nudgeOff: {}, mails: [], mailDel: {}, cst: {} };
   }
   var S = fresh();
   try { var raw = localStorage.getItem(KEY); if (raw) { var p = JSON.parse(raw); for (var k in p) S[k] = p[k]; } } catch (e) {}
@@ -43,7 +43,11 @@
     users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.8a3.5 3.5 0 0 1 0 6.4M18 14.2a6.5 6.5 0 0 1 3.5 5.8"/>',
     scan: '<path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M7 12h10"/>',
     chat: '<path d="M4 5h16v11H9l-5 4z"/>',
-    ruler: '<path d="M3 16.5 16.5 3 21 7.5 7.5 21z"/><path d="m7 12.5 2 2M10 9.5l2 2M13 6.5l2 2"/>'
+    ruler: '<path d="M3 16.5 16.5 3 21 7.5 7.5 21z"/><path d="m7 12.5 2 2M10 9.5l2 2M13 6.5l2 2"/>',
+    mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3.5 6.5 8.5 6.5 8.5-6.5"/>',
+    more: '<circle cx="5.5" cy="12" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="18.5" cy="12" r="1.3" fill="currentColor"/>',
+    gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6"/>',
+    pencil: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/>'
   };
   function ic(n, extra) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"' + (extra || '') + '>' + IC[n] + '</svg>'; }
 
@@ -113,6 +117,7 @@
     'org-inbox': { t: '문의 관리', icon: 'chat', group: '전시 운영', badge: function () { return allInq().filter(function (q) { return inqSt(q) === 'new'; }).length; } },
     'org-map': { t: '부스 배정 맵', icon: 'map', group: '전시 운영' },
     'org-relay': { t: '운영사 제출 현황', icon: 'doc', group: '전시 운영' },
+    'org-mail': { t: '콜드메일 발송', icon: 'mail', group: '섭외·협력', tag: 'NEW' },
     assistant: { t: 'AI 어시스턴트', icon: 'spark', group: '지식', tag: 'BETA' },
     library: { t: 'Library', icon: 'book', group: '지식' }
   };
@@ -123,6 +128,7 @@
     'op-map': { t: '홀 맵', icon: 'map', group: '전시장 총괄' },
     'op-issues': { t: '현장 이슈', icon: 'alert', group: '전시장 총괄', badge: function () { return D.issues.filter(function (i) { return issueSt(i) === 'new'; }).length; } },
     'op-log': { t: '처리 이력', icon: 'doc', group: '전시장 총괄' },
+    'op-mail': { t: '협력업체 메일', icon: 'mail', group: '협력', tag: 'NEW' },
     assistant: { t: 'AI 어시스턴트', icon: 'spark', group: '지식', tag: 'BETA' },
     library: { t: 'Library', icon: 'book', group: '지식' }
   };
@@ -199,7 +205,7 @@
       h = '<div class="ws"><div class="ws-top"><div class="logo">ED</div><div style="min-width:0"><div class="ws-name">' + esc(e.name) + '</div><div class="ws-sub">' + esc(e.hall) + ' · 부스 ' + esc(e.booth) + '</div></div></div>'
         + '<div class="row"><span class="role-pill ex">참가사</span><span class="pill ' + (isPre() ? 'warn' : 'ok') + '">' + esc(e.status) + '</span><span class="pill demo">데모</span></div></div>';
     } else {
-      h = '<div class="ws"><div class="ws-top"><div class="logo">ED</div><div style="min-width:0"><div class="ws-name">' + esc(role === 'organizer' ? D.exhibitions.approved.name : '전시장 통합 관제') + '</div><div class="ws-sub">' + esc(role === 'organizer' ? 'Hall C · 참가사 ' + D.exhibitorsList.length + '곳' : 'Hall A·B·C·D · THE PLATZ') + '</div></div></div>'
+      h = '<div class="ws"><div class="ws-top"><div class="logo">ED</div><div style="min-width:0;flex:1"><div class="ws-name">' + esc(role === 'organizer' ? D.exhibitions.approved.name : '전시장 통합 관제') + '</div><div class="ws-sub">' + esc(role === 'organizer' ? 'Hall C · 참가사 ' + D.exhibitorsList.length + '곳' : 'Hall A·B·C·D · THE PLATZ') + '</div></div></div>'
         + '<div class="row"><span class="role-pill ' + (role === 'organizer' ? 'org' : 'op') + '">' + rr.label + '</span><span class="pill demo">' + esc(rr.scen) + ' · 데모</span></div></div>';
     }
     h += '<label class="search">' + ic('search', ' width="16" height="16"') + '<span class="sr">검색</span><input id="side-search" placeholder="규정, 서류, 연락처 검색"></label><nav class="nav" aria-label="주 메뉴">';
@@ -209,26 +215,28 @@
         var r = R[k], locked = role === 'exhibitor' && isPre() && !PRE_OPEN[k];
         var n = r.badge ? r.badge() : 0;
         var badge = k === 'submissions' && !isPre() ? '<span class="tag n">' + unread + '</span>' : n ? '<span class="tag">' + n + '</span>' : r.tag ? '<span class="tag">' + r.tag + '</span>' : '';
-        h += '<a href="#' + k + '" class="' + (k === cur ? 'on' : '') + (locked ? ' locked' : '') + '">' + ic(r.icon) + '<span>' + r.t + '</span>' + badge + '</a>';
+        h += '<a href="#' + k + '" title="' + r.t + '" class="' + (k === cur ? 'on' : '') + (locked ? ' locked' : '') + '"' + (k === cur ? ' aria-current="page"' : '') + '>' + ic(r.icon) + '<span>' + r.t + '</span>' + badge + '</a>';
       });
     });
     h += '</nav><div class="side-foot">';
     if (role === 'exhibitor') h += '<div class="mode"><div class="mode-row"><span>데모 계정 상태</span><span class="muted">기준 11.05</span></div><div class="seg" role="group" aria-label="데모 계정 상태">'
       + '<button data-mode="pre" class="' + (isPre() ? 'on' : '') + '">참가 신청 전</button><button data-mode="approved" class="' + (!isPre() ? 'on' : '') + '">신청 승인 완료</button></div></div>'
-      + (isPre() ? '' : '<a class="side-link" href="#booth">' + ic('phone', ' width="16" height="16"') + '부스 App 열기 <span class="tag n" style="margin-left:auto">전시 기간</span></a>');
-    h += '<button class="side-link" id="reset">' + ic('reset', ' width="16" height="16"') + '데모 데이터 초기화</button>'
-      + '<button class="side-link" data-act="logout">' + ic('users', ' width="16" height="16"') + '다른 역할로 로그인</button>'
+      + (isPre() ? '' : '<a class="side-link" href="#booth" title="부스 App 열기">' + ic('phone', ' width="16" height="16"') + '<span>부스 App 열기</span> <span class="tag n" style="margin-left:auto">전시 기간</span></a>');
+    h += '<button class="side-link" id="reset" title="데모 데이터 초기화">' + ic('reset', ' width="16" height="16"') + '<span>데모 데이터 초기화</span></button>'
+      + '<button class="side-link" data-act="logout" title="다른 역할로 로그인">' + ic('users', ' width="16" height="16"') + '<span>다른 역할로 로그인</span></button>'
       + '<div class="me"><div class="avatar">' + esc(rr.name.charAt(0)) + '</div><div><div style="font-weight:600;font-size:13px">' + esc(rr.name) + ' 매니저</div><div class="muted" style="font-size:11.5px">' + esc(rr.org) + ' · ' + rr.label + '</div></div></div></div>';
     return h;
   }
 
+  var lastRoute = null;
   function render() {
-    applyTheme();
+    applyTheme(); closePop();
     var login = !S.role;
     $('#login').hidden = !login; $('.app').hidden = login;
-    if (login) { $('#login').innerHTML = viewLogin(); $('#fab').innerHTML = ''; $('#mini').hidden = true; document.title = '로그인 · EXPO DESK'; return; }
+    if (login) { $('#login').innerHTML = viewLogin(); $('#fab').innerHTML = ''; $('#mini').hidden = true; document.title = '로그인 · EXPO DESK'; lastRoute = null; return; }
     syncSub();
-    var cur = route(), R = routesFor();
+    var cur = route(), R = routesFor(), changed = cur !== lastRoute; lastRoute = cur;
+    if (changed && cur !== 'org-mail' && cur !== 'op-mail') mailEd = null;
     $('#side').innerHTML = renderSide(cur);
     $('#side').classList.remove('open');
     var title = S.role === 'exhibitor' ? ex().name : S.role === 'organizer' ? D.exhibitions.approved.name : '전시장 운영본부';
@@ -237,6 +245,9 @@
     c.className = 'content';
     $('#main').dataset.route = cur;
     c.innerHTML = VIEWS[cur]();
+    injectHelp(cur, c);
+    if (changed) c.classList.add('enter');
+    paintBell();
     if (cur === 'assistant') { c.style.padding = '0'; c.style.maxWidth = 'none'; } else { c.style.padding = ''; c.style.maxWidth = ''; }
     mapRedraw = null;
     if (AFTER[cur]) AFTER[cur]();
@@ -269,7 +280,7 @@
       { i: 'building', t: '편의시설 위치', d: '의무실·물품보관소·휠체어 대여', q: '의무실이랑 물품보관소 어디야?' } ] }
   ];
   function composerHtml(id, ph) {
-    return '<div class="composer"><div class="chips"><span class="chip on"># 이 전시회 매뉴얼</span><span class="chip on"># COEX 규정·시설</span><span class="chip">@ ' + esc(ex().hall) + '</span></div>'
+    return '<div class="composer"><div class="chips"><span class="chip on"># 이 전시회 매뉴얼</span><span class="chip on"># COEX 규정·시설</span><span class="chip">@ ' + esc(S.role === 'exhibitor' ? ex().hall : S.role === 'organizer' ? 'Hall C' : '전 홀') + '</span></div>'
       + '<label class="sr" for="' + id + '">질문</label><textarea id="' + id + '" rows="2" placeholder="' + esc(ph) + '"></textarea>'
       + '<div class="bar"><button class="icon-btn" style="width:30px;height:30px" data-act="attach" aria-label="파일 첨부">' + ic('clip') + '</button><span>문서 근거 · 쪽수 표시</span><span class="muted">· 확인 안 되면 확정하지 않음</span><button class="send" data-send="' + id + '" aria-label="보내기">' + ic('send', ' width="18" height="18"') + '</button></div></div>';
   }
@@ -342,10 +353,11 @@
     if (schedFilter === 'mine') open = open.filter(function (t) { return t.owner === D.user.name; });
     if (schedFilter === 'week') open = open.filter(function (t) { return days(t.due) <= 7; });
     var done = list.filter(function (t) { return S.done[t.id]; });
-    var h = '<div class="page-h"><div><h1>세부 일정표</h1><p>체크하면 대시보드와 캘린더에 바로 반영돼요.</p></div><div class="filters">'
-      + [['all', '전체'], ['mine', '내 할 일'], ['week', '7일 내 마감']].map(function (f) { return '<button data-sf="' + f[0] + '" class="' + (schedFilter === f[0] ? 'on' : '') + '">' + f[1] + '</button>'; }).join('') + '</div></div>';
+    var openAll = list.filter(function (t) { return !S.done[t.id]; });
+    var h = '<div class="page-h"><div><h1>세부 일정표</h1><p>체크하면 대시보드와 캘린더에 바로 반영돼요.</p></div></div>'
+      + utabs([['all', '전체', openAll.length], ['mine', '내 할 일', openAll.filter(function (t) { return t.owner === D.user.name; }).length], ['week', '7일 내 마감', openAll.filter(function (t) { return days(t.due) <= 7; }).length]], schedFilter, 'sf');
     h += '<section class="grid g-main"><div class="card"><div class="card-h"><h2>체크리스트</h2><span class="muted tnum">' + done.length + ' / ' + list.length + ' 완료</span></div><div class="card-b">'
-      + open.map(todoRow).join('') + (open.length ? '' : '<div class="empty">조건에 맞는 할 일이 없어요.</div>')
+      + open.map(todoRow).join('') + (open.length ? '' : emptyState('check', '조건에 맞는 할 일이 없어요', '모두 끝냈거나 다른 담당자의 일이에요.', ['<button class="btn sm" data-sf="all">전체 보기</button>']))
       + '<div class="nav-h" style="padding-left:0">완료 ' + done.length + '</div>' + done.map(todoRow).join('') + '</div></div>'
       + '<div class="card"><div class="card-h"><h2>2026년 11월</h2><span class="pill acc">오늘 11.05</span></div><div class="card-b">' + calendar(2026, 10) + '<div class="legend" style="margin-top:10px"><span><i style="background:var(--accent-weak)"></i>우리 회사</span><span><i style="background:var(--bad-weak)"></i>마감 임박</span><span><i style="background:var(--info-weak)"></i>주최사</span><span><i style="background:var(--ok-weak)"></i>코엑스</span></div></div></div></section>';
     return h;
@@ -382,7 +394,12 @@
       return true;
     });
     var h = '<div class="page-h"><div><h1>제출·신청 관리</h1><p>주최사·코엑스에 낼 서류와 기술지원 신청을 한 곳에서 관리해요.</p></div><div class="row"><button class="btn" data-act="inquiry">' + ic('chat') + '주최사에 문의</button><button class="btn" data-act="forms">' + ic('doc') + '양식 일괄 받기</button><button class="btn primary" data-go="check">' + ic('check') + 'AI 사전 점검</button></div></div>';
-    h += '<div class="filters">' + [['all', '전체'], ['required', '우리 부스 필수'], ['cond', '조건부'], ['rejected', '반려'], ['done', '완료']].map(function (f) { return '<button data-subf="' + f[0] + '" class="' + (subFilter === f[0] ? 'on' : '') + '">' + f[1] + '<em class="tnum">' + counts[f[0]] + '</em></button>'; }).join('') + '</div>';
+    var reqRows = rows.filter(function (r) { return r.req === 'required' || (r.req === 'cond' && S.cond[r.cond]); }), reqDoneN = reqRows.filter(function (r) { return r.st === 'approved' || r.st === 'submitted'; }).length;
+    var inRev = reqAll().filter(function (r) { var st = reqState(r).stage; return r.co === '㈜한빛로보틱스' && (st === 'org' || st === 'op'); }).length;
+    var soon = rows.filter(function (r) { return !(r.st === 'approved' || r.st === 'submitted') && r.st !== 'na' && days(r.due) <= 7; }).length;
+    h += kstrip([{ l: '필수 완료', v: reqDoneN + '/' + reqRows.length, c: 'acc' }, { l: '검토 중', v: inRev, u: '건', c: 'info' }, { l: '반려', v: counts.rejected, u: '건', c: 'bad' }, { l: '7일 내 마감', v: soon, u: '건', c: 'warn' }], '<span class="muted" style="font-size:12px">참가사 제출 → 주최사 검토 → 운영사 승인</span>');
+    h += utabs([['all', '전체', counts.all], ['required', '우리 부스 필수', counts.required], ['cond', '조건부', counts.cond], ['rejected', '반려', counts.rejected], ['done', '완료', counts.done]], subFilter, 'subf');
+    if (!shown.length) return h + '<div class="card">' + emptyState('check', '이 탭에 해당하는 서류가 없어요', subFilter === 'rejected' ? '반려된 서류가 없어요. 이대로 마감까지 가면 돼요.' : '다른 탭을 골라 보세요.', ['<button class="btn sm" data-subf="all">전체 보기</button>']) + '</div>';
     h += '<div class="card"><div class="table-wrap"><table class="stack"><thead><tr><th>서류 / 신청</th><th>구분</th><th>제출처</th><th>근거</th><th>마감</th><th>상태</th><th></th></tr></thead><tbody>'
       + shown.map(function (s) {
         var reqLbl = s.req === 'required' ? '<span class="pill acc">필수</span>' : S.cond[s.cond] ? '<span class="pill acc">필수(조건)</span>' : '<span class="pill">선택</span>';
@@ -577,6 +594,26 @@
   function C(id) { return { chunk: id }; }
   function G(l) { return { label: l }; }
   var SCRIPTS = [
+    { re: /지연\s?참가사|독려\s?대상|진행률.*낮/, run: function () {
+      var L = D.exhibitorsList.map(function (e) { var d = exDocs(e); return { e: e, d: d, p: d[0] / d[1] }; }).filter(function (x) { return x.e.late || x.p < .5; }).sort(function (a, b) { return a.p - b.p; });
+      return { steps: [['참가사 ' + D.exhibitorsList.length + '곳의 서류 진행률을 계산했어요', '필수 서류 기준'], ['도면 마감(11.06)과 대조했어요', '진행률 50% 미만 ' + L.length + '곳']],
+        html: '<p>필수 서류 진행률이 50% 아래인 참가사는 <b>' + L.length + '곳</b>이에요.</p><ul>' + L.map(function (x) { return '<li><b>' + esc(x.e.co) + '</b> · ' + x.d[0] + '/' + x.d[1] + ' (' + Math.round(x.p * 100) + '%) · 담당 ' + esc(x.e.mgr) + (x.e.late ? ' · 지연' : '') + '</li>'; }).join('') + '</ul><p>부스 디자인 도면 마감은 <b>11.06</b>이에요. 참가사 현황에서 골라 한 번에 독려할 수 있어요.</p>',
+        cites: [G('참가업체 매뉴얼(데모) 제출 일정')], follow: ['참가사 현황 열기', '참가사 문의 많이 온 주제는?'] }; } },
+    { re: /문의.*(주제|많이|자주)/, run: function () { return {
+      steps: [['문의함을 분류했어요', '최근 문의 ' + allInq().length + '건']],
+      html: '<p>최근 문의는 <b>반입·주차</b>와 <b>시설 규정</b>이 가장 많아요.</p><ul><li>반입·화물출입구·주차 2건 · 근거 문서로 바로 답할 수 있어요[1]</li><li>천장 배너 하중 1건 · Hall C 1Point 150kg 기준[2]</li><li>급배수(커피머신) 1건</li><li>출입증 추가 발급·바닥 앵커 2건 · 매뉴얼에 기준이 없어 운영사 확인이 필요해요</li></ul>',
+      cites: [C('coex-dwg-hall-c-floor-2024#03-loading'), C('coex-dwg-hall-c-ceiling-2024#01-rigging')], follow: ['문의 관리 열기', '서류 지연 참가사 정리해줘'] }; } },
+    { re: /회신률|회신\s?현황/, run: function (q) {
+      var kind = /협력/.test(q) || S.role === 'operator' ? 'partner' : 'prospect', L = mailsAll().filter(function (m) { return m.kind === kind && m.st === 'sent'; });
+      var to = L.reduce(function (n, m) { return n + m.to.length; }, 0), op = L.reduce(function (n, m) { return n + m.open; }, 0), rp = L.reduce(function (n, m) { return n + m.reply; }, 0);
+      return { steps: [['메일 발송 기록을 모았어요', (kind === 'partner' ? '협력업체' : '개별섭외업체') + ' ' + L.length + '건'], ['열람·회신을 집계했어요', '데모 집계']],
+        html: L.length ? '<p>' + (kind === 'partner' ? '협력업체' : '개별섭외업체') + '에 보낸 메일 ' + L.length + '건, 받은 곳 ' + to + '곳 중 <b>' + rp + '곳이 회신</b>했어요. 회신률 ' + Math.round(rp / to * 100) + '%, 열람 ' + op + '곳이에요.</p><ul>' + L.map(function (m) { return '<li>' + esc(m.title) + ' · ' + m.to.length + '곳 · 열람 ' + m.open + ' · 회신 ' + m.reply + '</li>'; }).join('') + '</ul><p>안 읽은 곳에는 제목을 바꿔 한 번 더 보내 보세요.</p>' : '<p>아직 보낸 메일이 없어요.</p>',
+        cites: [], follow: ['콜드메일 열기'] }; } },
+    { re: /먼저\s?승인|승인.*(우선|순서)/, run: function () {
+      var L = reqAll().filter(function (r) { return reqState(r).stage === 'op'; }).sort(function (a, b) { return a.due < b.due ? -1 : 1; });
+      return { steps: [['통합 승인함을 확인했어요', '승인 대기 ' + L.length + '건'], ['마감과 안전 항목으로 정렬했어요', '위험물·하중 우선']],
+        html: '<p>운영사 승인 대기 <b>' + L.length + '건</b>을 마감순으로 정리했어요. 위험물처럼 안전과 관련된 건은 먼저 보세요.[1]</p><ol>' + L.map(function (r) { return '<li><b>' + md(r.due) + '</b> ' + esc(r.co) + ' · ' + esc(r.title) + (r.type === '위험물' ? ' · 안전 확인 필요' : '') + '</li>'; }).join('') + '</ol>',
+        cites: [G('이용안내서 p.57')], follow: ['통합 승인함 열기'] }; } },
     { re: /커피|급배수|싱크|물\s?쓰/, not: /점검|누수/, run: function () { return {
       steps: [['이 전시회 매뉴얼을 찾았어요', '기술지원 신청 마감'], ['코엑스 규정을 살펴봤어요', '급배수 주의사항 1~3항'], ['우리 제출 현황과 대조했어요', '급배수 신청 미착수']],
       html: '<p>급배수는 직접 설치할 수 없고 <b>코엑스에 등록된 서비스협력업체</b>가 시공해야 해요.[1]</p><ol><li>기술지원 신청서에 급배수 사용을 표기하세요. 이 전시회는 주최사가 <b>11.16</b>까지 취합해요.[2]</li><li>급배수 사용 서약서에 전시주최·참가업체·공사업체가 모두 날인해요.[1]</li><li>배수관은 장비와 1:1로 연결하고, 중간에 T관으로 잇는 공사는 금지예요.[1]</li></ol><p>지금 우리 회사 상태: <span class="pill">미착수</span> · 마감까지 11일 남았어요.</p>',
@@ -650,7 +687,7 @@
       cites: [G('이용안내서 p.26')], follow: ['AI 사전 점검 열기'] }; } }
   ];
   var CLARIFY = { re: /^\s*주차\s*\??$|주차\s*(어떻게|알려|안내)\s*\??$/, ask: '어떤 주차를 찾으세요?', opts: ['준비기간 화물차 무료주차 조건은?', '전시기간 주차권 사전구매는?', '3층 로딩독 어떻게 들어가?'] };
-  var NAV_FOLLOW = { 'AI 사전 점검 열기': 'check', '조건별 필수 판정 열기': 'check', 'Hall A 도면 보기': 'halls:a', 'Hall B 도면 보기': 'halls:b', 'Hall C 도면 보기': 'halls:c', '세부 일정표 열기': 'schedule', '부스 App 열기': 'booth', 'Library 연락처 전체 보기': 'library:tel', '서약서 양식 받기': 'toast', '시공업체는 어떻게 찾아?': 'toast' };
+  var NAV_FOLLOW = { 'AI 사전 점검 열기': 'check', '조건별 필수 판정 열기': 'check', 'Hall A 도면 보기': 'halls:a', 'Hall B 도면 보기': 'halls:b', 'Hall C 도면 보기': 'halls:c', '세부 일정표 열기': 'schedule', '부스 App 열기': 'booth', 'Library 연락처 전체 보기': 'library:tel', '서약서 양식 받기': 'toast', '시공업체는 어떻게 찾아?': 'toast', '참가사 현황 열기': 'org-exhibitors', '문의 관리 열기': 'org-inbox', '콜드메일 열기': 'mail', '통합 승인함 열기': 'op-approvals' };
 
   function bigrams(s) { s = s.toLowerCase().replace(/[^0-9a-z가-힣]/g, ''); var o = []; for (var i = 0; i < s.length - 1; i++) o.push(s.substr(i, 2)); return o; }
   function retrieve(q) {
@@ -666,7 +703,7 @@
   }
   function answer(q) {
     if (CLARIFY.re.test(q)) return { steps: [['질문 범위를 확인했어요', '주차 관련 문서 6건']], ask: CLARIFY.ask, opts: CLARIFY.opts };
-    for (var i = 0; i < SCRIPTS.length; i++) { var s = SCRIPTS[i]; if (s.re.test(q) && !(s.not && s.not.test(q))) return s.run(); }
+    for (var i = 0; i < SCRIPTS.length; i++) { var s = SCRIPTS[i]; if (s.re.test(q) && !(s.not && s.not.test(q))) return s.run(q); }
     var r = retrieve(q);
     if (!r.length) return { steps: [['이 전시회 매뉴얼과 COEX 데이터를 찾아봤어요', '맞는 근거 없음']], hold: '근거를 찾지 못해 답을 확정하지 않았어요.',
       html: '<p>지금 등록된 문서에서는 이 질문에 답할 근거를 찾지 못했어요. 행사별 규정이면 주최사 사무국에, 시설·현장 문의는 홀매니저실(<span class="mono">02-6000-1143~5</span>)에 확인해 주세요.</p>', cites: [], follow: ['커피머신 급배수 신청', '준비기간 화물차 무료주차 조건은?'] };
@@ -689,7 +726,7 @@
   function ask(q, opts) {
     q = (q || '').trim(); if (!q) return;
     var nav = NAV_FOLLOW[q];
-    if (nav) { if (nav === 'toast') { toast('데모에서는 양식 파일 연결 대신 안내만 보여줘요.'); return; } var p = nav.split(':'); if (p[0] === 'halls') hallSel = p[1]; if (p[0] === 'library') libFilter = p[1]; miniOpen = false; go(p[0]); return; }
+    if (nav) { if (nav === 'toast') { toast('데모에서는 양식 파일 연결 대신 안내만 보여줘요.'); return; } var p = nav.split(':'); if (p[0] === 'mail') p[0] = S.role === 'operator' ? 'op-mail' : 'org-mail'; if (p[0] === 'halls') hallSel = p[1]; if (p[0] === 'library') libFilter = p[1]; miniOpen = false; go(p[0]); return; }
     var chat = activeChat();
     if (!chat || (opts && opts.fresh)) { chat = { id: 'c' + Date.now(), title: q.slice(0, 22), at: '오늘', msgs: [] }; S.chats.unshift(chat); S.active = chat.id; }
     chat.msgs.push({ r: 'u', t: q }); chat.pending = true; save();
@@ -733,7 +770,7 @@
   function renderFab(cur) {
     var f = $('#fab');
     if (cur === 'assistant') { f.innerHTML = ''; return; }
-    f.innerHTML = (S.nudge && !miniOpen && cur === 'home' ? '<div class="nudge"><span>도면 수정본에 반려 사유가 남아 있어요. <a href="#check">지금 볼까요?</a></span><button data-act="nudge-x" aria-label="닫기">' + ic('x', ' width="14" height="14"') + '</button></div>' : '')
+    f.innerHTML = (cur === 'booth' ? '' : nudgeHtml(cur))
       + '<button class="fab-btn" data-act="mini">' + ic(miniOpen ? 'x' : 'spark') + '<span>' + (miniOpen ? '닫기' : 'AI 어시스턴트') + '</span></button>';
     var m = $('#mini');
     m.hidden = !miniOpen;
@@ -783,13 +820,13 @@
   }
   function reqCard(r, actor) {
     var st = reqState(r), canAct = (actor === 'org' && st.stage === 'org') || (actor === 'op' && (st.stage === 'op' || st.stage === 'org'));
-    return '<div class="card"><div class="card-b" style="display:flex;flex-direction:column;gap:10px"><div class="row" style="justify-content:space-between;align-items:flex-start;flex-wrap:nowrap"><div style="min-width:0">'
+    return '<div class="card rq' + (opSel[r.id] && actor === 'op' ? ' sel' : '') + '"><div class="card-b" style="display:flex;flex-direction:column;gap:10px"><div class="row" style="justify-content:space-between;align-items:flex-start;flex-wrap:nowrap"><div style="min-width:0">'
       + '<div class="row">' + (actor === 'op' && canAct ? '<input type="checkbox" data-rqsel="' + r.id + '" aria-label="선택"' + (opSel[r.id] ? ' checked' : '') + '>' : '') + '<span class="pill">' + esc(r.type) + '</span><span class="role-pill ' + (r.from === 'org' ? 'org' : 'ex') + '" style="font-size:11px;padding:1px 8px">' + (r.from === 'org' ? '주최사' : '참가사') + '</span>' + stagePill(st) + (r.flag ? '<span class="pill bad">AI · ' + esc(r.flag) + '</span>' : '') + '</div>'
       + '<div class="t-title" style="margin-top:6px">' + esc(r.title) + '</div><div class="t-desc">' + esc(r.co) + ' · 부스 ' + esc(r.booth) + ' · ' + esc(r.file) + ' · 제출 ' + r.at + '</div></div>'
       + '<div style="text-align:right;flex:none"><div class="tnum" style="font-size:12px">마감 ' + md(r.due) + '</div>' + ddayHtml(r.due, st.stage === 'approved') + '</div></div>'
       + '<div class="row" style="justify-content:space-between">' + chainHtml(st) + '<span>' + cite(r.src) + '</span></div>'
       + (st.stage === 'rejected' && st.reason ? '<div class="reject"><b>반려 사유 · ' + (st.by === 'op' ? '운영사' : '주최사') + '</b> ' + esc(st.reason) + '</div>' : '')
-      + (canAct ? '<div class="row" style="justify-content:flex-end"><button class="btn sm" data-rqno="' + r.id + '">반려</button><button class="btn sm primary" data-rqok="' + r.id + '">' + (actor === 'org' ? '검토 통과 · 운영사로' : st.stage === 'org' ? '직권 승인' : '승인') + '</button></div>' : '')
+      + (canAct ? '<div class="row" style="justify-content:flex-end"><button class="btn sm" data-rqno="' + r.id + '">반려</button><button class="btn sm primary" data-rqok="' + r.id + '">' + (actor === 'org' ? '검토 통과 · 운영사로' : st.stage !== 'op' ? '직권 승인' : '승인') + '</button></div>' : '')
       + '</div></div>';
   }
   function decide(id, ok, reason) {
@@ -802,7 +839,7 @@
   }
 
   /* ----- 모달 ----- */
-  function openModal(html) { var m = $('#modal'); if (!m) { m = document.createElement('div'); m.id = 'modal'; m.className = 'modal'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true'); document.body.appendChild(m); } m.innerHTML = html; m.hidden = false; $('#scrim').hidden = false; var f = m.querySelector('textarea,select,input'); if (f) f.focus(); }
+  function openModal(html, cls) { closePop(); var m = $('#modal'); if (!m) { m = document.createElement('div'); m.id = 'modal'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true'); document.body.appendChild(m); } m.className = 'modal ' + (cls || ''); m.innerHTML = html; m.hidden = false; $('#scrim').hidden = false; var f = m.querySelector('textarea,select,input:not([type=checkbox])'); if (f) f.focus(); }
   function closeModal() { var m = $('#modal'); if (m) m.hidden = true; }
   function rejectModal(id) {
     var r = reqAll().filter(function (x) { return x.id === id; })[0];
@@ -847,29 +884,48 @@
       ]) + '</section>';
     return h;
   }
+  var exSel = {}, exQ = '', revTab = 'org', inboxTab = 'all', issQ = '';
+  var EXST = { late: ['bad', '지연'], fix: ['warn', '보완 중'], prog: ['n', '진행 중'], done: ['ok', '완료'] };
+  function exStatus(e) { var d = exDocs(e), rj = exRejected(e); return e.late ? 'late' : rj ? 'fix' : d[0] === d[1] ? 'done' : 'prog'; }
   function viewOrgExhibitors() {
-    var h = '<div class="page-h"><div><h1>참가사 현황</h1><p>참가사별 서류 진행률과 반려·문의를 한눈에 봐요. ㈜한빛로보틱스는 참가사 화면의 실제 상태가 반영돼요.</p></div><button class="btn" data-act="nudgeall">' + ic('bell') + '지연 참가사 일괄 독려</button></div>';
-    h += '<div class="card"><div class="table-wrap"><table class="stack"><thead><tr><th>참가사</th><th>부스</th><th>담당</th><th>필수 서류</th><th>반려</th><th>문의</th><th>상태</th><th></th></tr></thead><tbody>'
-      + D.exhibitorsList.map(function (e) {
-        var d = exDocs(e), rj = exRejected(e), st = e.late ? '<span class="pill bad">지연</span>' : rj ? '<span class="pill warn">보완 중</span>' : d[0] === d[1] ? '<span class="pill ok">완료</span>' : '<span class="pill">진행 중</span>';
-        return '<tr><td><div class="t-title">' + esc(e.co) + (e.live ? ' <span class="pill acc">실시간</span>' : '') + '</div></td><td data-l="부스" class="tnum">' + esc(e.booth) + ' · ' + e.size + '㎡</td><td data-l="담당">' + esc(e.mgr) + '</td><td data-l="서류" style="min-width:140px">' + pctBar(d[0], d[1]) + '</td><td data-l="반려" class="tnum">' + (rj || '—') + '</td><td data-l="문의" class="tnum">' + (e.inq || '—') + '</td><td data-l="상태">' + st + '</td><td>' + (d[0] < d[1] ? '<button class="btn sm" data-nudge="' + esc(e.co) + '">독려</button>' : '') + '</td></tr>';
-      }).join('') + '</tbody></table></div></div>';
+    var all = D.exhibitorsList, cnt = { late: 0, fix: 0, prog: 0, done: 0 }; all.forEach(function (e) { cnt[exStatus(e)]++; });
+    var L = all.filter(function (e) { return fpass('ex', 'st', exStatus(e)) && fpass('ex', 'inq', e.inq ? 'y' : 'n') && (!exQ || (e.co + e.mgr + e.booth).indexOf(exQ) >= 0); });
+    var nsel = Object.keys(exSel).filter(function (k) { return exSel[k]; }).length, allOn = L.length && L.every(function (e) { return exSel[e.co]; });
+    var h = '<div class="page-h"><div><h1>참가사 현황</h1><p>참가사별 서류 진행률과 반려·문의를 한눈에 봐요.</p></div><button class="btn" data-act="nudgeall">' + ic('bell') + '지연 참가사 일괄 독려</button></div>';
+    h += kstrip([{ l: '참가사', v: all.length, u: '곳' }, { l: '지연', v: cnt.late, u: '곳', c: 'bad' }, { l: '보완 중', v: cnt.fix, u: '곳', c: 'warn' }, { l: '진행 중', v: cnt.prog, u: '곳', c: 'n' }, { l: '완료', v: cnt.done, u: '곳', c: 'ok' }], '<span class="muted" style="font-size:12px">도면 마감 11.06 · 기술지원 11.16</span>');
+    h += '<div class="toolbar">' + fchip('ex', 'st', '상태', Object.keys(EXST).map(function (k) { return [k, EXST[k][1], EXST[k][0], cnt[k]]; })) + fchip('ex', 'inq', '문의', [['y', '문의 있음'], ['n', '문의 없음']])
+      + '<label class="search grow-s">' + ic('search', ' width="14" height="14"') + '<span class="sr">참가사 검색</span><input id="ex-q" placeholder="참가사·담당자·부스 검색" value="' + esc(exQ) + '"></label>'
+      + '<div class="row" style="margin-left:auto"><button class="btn sm" data-act="exnudge"' + (nsel ? '' : ' disabled') + '>' + ic('bell') + '선택 ' + nsel + '곳 독려</button></div></div>';
+    h += fsum(L.length, all.length, '곳', 'ex');
+    if (!L.length) return h + '<div class="card">' + emptyState('search', '조건에 맞는 참가사가 없어요', '필터를 바꾸거나 초기화해 보세요.', ['<button class="btn sm" data-freset="ex">필터 초기화</button>']) + '</div>';
+    h += '<div class="card"><div class="table-wrap tall freeze"><table class="stack hov"><thead><tr><th class="cbx"><input type="checkbox" data-exall="1" aria-label="전체 선택"' + (allOn ? ' checked' : '') + '></th><th>참가사</th><th>부스</th><th>담당</th><th>필수 서류</th><th>반려</th><th>문의</th><th>상태</th><th></th></tr></thead><tbody>'
+      + L.map(function (e) {
+        var d = exDocs(e), rj = exRejected(e), k = exStatus(e), on = !!exSel[e.co];
+        return '<tr class="' + (on ? 'sel' : '') + '"><td class="cbx"><input type="checkbox" data-exsel="' + esc(e.co) + '" aria-label="' + esc(e.co) + ' 선택"' + (on ? ' checked' : '') + '></td><td><div class="t-title">' + esc(e.co) + (e.live ? ' <span class="pill acc">실시간</span>' : '') + '</div></td><td data-l="부스" class="tnum">' + esc(e.booth) + ' · ' + e.size + '㎡</td><td data-l="담당">' + esc(e.mgr) + '</td><td data-l="서류" style="min-width:140px">' + pctBar(d[0], d[1]) + '</td><td data-l="반려" class="tnum">' + (rj || '—') + '</td><td data-l="문의" class="tnum">' + (e.inq || '—') + '</td><td data-l="상태"><span class="pill ' + (EXST[k][0] === 'n' ? '' : EXST[k][0]) + '">' + EXST[k][1] + '</span></td><td><button class="rowmenu" data-rowmenu="ex|' + esc(e.co) + '" aria-label="' + esc(e.co) + ' 더 보기">' + ic('more') + '</button></td></tr>';
+      }).join('') + '</tbody></table></div></div>'
+      + '<p class="muted" style="font-size:12.5px;margin:0">㈜한빛로보틱스는 참가사 화면의 실제 상태가 반영돼요.</p>';
     return h;
   }
   function viewOrgReview() {
-    var q = reqAll().filter(function (r) { return r.from === 'ex' && reqState(r).stage === 'org'; }), done = reqAll().filter(function (r) { return r.from === 'ex' && reqState(r).stage !== 'org'; });
-    var h = '<div class="page-h"><div><h1>서류 1차 검토</h1><p>참가사가 낸 서류를 근거 문서와 대조해 운영사로 넘기거나 반려해요. 반려 사유는 AI가 근거와 함께 초안을 써 둬요.</p></div></div>';
-    h += '<h2 style="font-size:15px">검토 대기 ' + q.length + '건</h2>' + (q.length ? q.map(function (r) { return reqCard(r, 'org'); }).join('') : '<div class="card"><div class="empty">검토할 서류가 없어요.</div></div>');
-    h += '<h2 style="font-size:15px;margin-top:8px">처리한 서류</h2>' + done.map(function (r) { return reqCard(r, 'org'); }).join('');
-    return h;
+    var ex = reqAll().filter(function (r) { return r.from === 'ex'; }), stg = function (r) { var s = reqState(r).stage; return s === 'op' || s === 'approved' ? 'pass' : s; };
+    var cnt = { org: 0, pass: 0, rejected: 0 }; ex.forEach(function (r) { cnt[stg(r)]++; });
+    var L = ex.filter(function (r) { return stg(r) === revTab; });
+    var h = '<div class="page-h"><div><h1>서류 1차 검토</h1><p>참가사 서류를 근거 문서와 대조해 운영사로 넘기거나 반려해요. 반려 사유는 AI가 근거와 함께 초안을 써 둬요.</p></div></div>';
+    h += kstrip([{ l: '검토 대기', v: cnt.org, u: '건', c: 'info' }, { l: '통과', v: cnt.pass, u: '건', c: 'ok' }, { l: '반려', v: cnt.rejected, u: '건', c: 'bad' }, { l: 'AI 의심 표시', v: ex.filter(function (r) { return r.flag && stg(r) === 'org'; }).length, u: '건', c: 'warn' }]);
+    h += utabs([['org', '검토 대기', cnt.org], ['pass', '통과', cnt.pass], ['rejected', '반려', cnt.rejected]], revTab, 'rvtab');
+    var es = { org: ['검토할 서류가 없어요', '참가사가 서류를 내면 여기로 들어와요.'], pass: ['통과시킨 서류가 없어요', ''], rejected: ['반려한 서류가 없어요', ''] }[revTab];
+    return h + (L.length ? L.map(function (r) { return reqCard(r, 'org'); }).join('') : '<div class="card">' + emptyState('check', es[0], es[1], ['<a class="btn sm" href="#org-exhibitors">참가사 현황 보기</a>']) + '</div>');
   }
   function viewOrgInbox() {
-    var L = allInq().slice().sort(function (a, b) { return (inqSt(a) === 'new' ? 0 : 1) - (inqSt(b) === 'new' ? 0 : 1); });
+    var A = allInq(), ic2 = { all: A.length, new: 0, answered: 0, escalated: 0 }; A.forEach(function (q) { ic2[inqSt(q)]++; });
+    var L = A.filter(function (q) { return inboxTab === 'all' || inqSt(q) === inboxTab; }).sort(function (a, b) { return (inqSt(a) === 'new' ? 0 : 1) - (inqSt(b) === 'new' ? 0 : 1); });
+    var tabs = utabs([['all', '전체', ic2.all], ['new', '새 문의', ic2.new], ['answered', '답변 완료', ic2.answered], ['escalated', '운영사 이관', ic2.escalated]], inboxTab, 'ibtab');
+    if (!L.length) return '<div class="page-h"><div><h1>문의 관리</h1><p>참가사 문의에 AI가 근거 문서로 답변 초안을 써 둬요.</p></div></div>' + tabs + '<div class="card">' + emptyState('chat', inboxTab === 'new' ? '새 문의를 모두 처리했어요' : '이 탭에 문의가 없어요', '새 문의가 오면 알림으로 알려 드려요.', ['<button class="btn sm" data-ibtab="all">전체 보기</button>']) + '</div>';
     if (!inqSel || !L.filter(function (q) { return q.id === inqSel; }).length) inqSel = L[0].id;
     var q = L.filter(function (x) { return x.id === inqSel; })[0], st = inqSt(q);
     var stp = function (s) { return { new: '<span class="pill bad">새 문의</span>', answered: '<span class="pill ok">답변 완료</span>', escalated: '<span class="pill warn">운영사 이관</span>' }[s]; };
     var res = answer(q.ask), draft = (S.inq[q.id] || {}).reply || q.draft || (res.html || '').replace(/<[^>]+>/g, '').replace(/\[\d\]/g, '').replace(/\s+/g, ' ').trim();
-    var h = '<div class="page-h"><div><h1>문의 관리</h1><p>참가사 문의에 AI가 근거 문서로 답변 초안을 써 둬요. 확인하고 보내거나, 시설 문제는 운영사로 넘겨요.</p></div></div>';
+    var h = '<div class="page-h"><div><h1>문의 관리</h1><p>참가사 문의에 AI가 근거 문서로 답변 초안을 써 둬요. 확인하고 보내거나, 시설 문제는 운영사로 넘겨요.</p></div></div>' + tabs;
     h += '<div class="inbox"><div class="card" style="overflow:hidden;align-self:start">' + L.map(function (x) { return '<button class="inq' + (x.id === inqSel ? ' on' : '') + '" data-inq="' + x.id + '"><span class="top"><span>' + esc(x.co) + ' · ' + esc(x.who) + '</span><span class="tnum">' + x.at + '</span></span><span style="font-size:13.5px;font-weight:' + (inqSt(x) === 'new' ? 700 : 400) + '">' + esc(x.q) + '</span><span>' + stp(inqSt(x)) + '</span></button>'; }).join('') + '</div>';
     h += '<div class="card"><div class="card-h"><h2>' + esc(q.co) + ' · ' + esc(q.who) + '</h2>' + stp(st) + '</div><div class="card-b" style="display:flex;flex-direction:column;gap:14px"><div class="msg-u" style="align-self:flex-start;max-width:100%">' + esc(q.q) + '</div>'
       + '<div class="msg-a" style="max-width:100%">' + (res.steps ? '<div class="muted" style="font-size:12px">AI가 ' + res.steps.length + '가지 업무를 진행했어요 · ' + esc(res.steps.map(function (s) { return s[0]; }).join(' → ')) + '</div>' : '') + (res.hold ? '<div class="hold">' + ic('alert', ' width="16" height="16" style="flex:none;margin-top:2px"') + '<span><b>확정 보류</b> · ' + esc(res.hold) + ' 운영사 이관을 권해요.</span></div>' : '') + '</div>'
@@ -918,13 +974,19 @@
     return h;
   }
   function viewOpApprovals() {
-    var all = reqAll(), tabs = [['op', '승인 대기'], ['org', '주최사 검토 중'], ['done', '처리 완료']];
-    var cnt = { op: reqCount('op'), org: reqCount('org'), done: all.filter(function (r) { var s = reqState(r).stage; return s === 'approved' || s === 'rejected'; }).length };
-    var L = all.filter(function (r) { var s = reqState(r).stage; return opTab === 'done' ? (s === 'approved' || s === 'rejected') : s === opTab; });
-    var nsel = Object.keys(opSel).filter(function (k) { return opSel[k]; }).length;
-    var h = '<div class="page-h"><div><h1>통합 승인함</h1><p>참가사와 주최사가 올린 모든 신청을 최종 승인하거나 반려해요. 주최사 검토 중인 건도 직권으로 처리할 수 있어요.</p></div>' + (opTab !== 'done' ? '<button class="btn primary" data-act="batchok"' + (nsel ? '' : ' disabled') + '>' + ic('check') + '선택 ' + nsel + '건 일괄 승인</button>' : '') + '</div>';
-    h += '<div class="filters">' + tabs.map(function (t) { return '<button data-optab="' + t[0] + '" class="' + (opTab === t[0] ? 'on' : '') + '">' + t[1] + '<em class="tnum">' + cnt[t[0]] + '</em></button>'; }).join('') + '</div>';
-    return h + (L.length ? L.map(function (r) { return reqCard(r, opTab === 'done' ? 'view' : 'op'); }).join('') : '<div class="card"><div class="empty">해당하는 신청이 없어요.</div></div>');
+    var all = reqAll(), grp = function (r) { var s = reqState(r).stage; return s === 'approved' || s === 'rejected' ? 'done' : s; };
+    var cnt = { op: 0, org: 0, done: 0 }; all.forEach(function (r) { cnt[grp(r)]++; });
+    var L = all.filter(function (r) { return grp(r) === opTab && fpass('ap', 'from', r.from) && fpass('ap', 'type', r.type); });
+    var nsel = Object.keys(opSel).filter(function (k) { return opSel[k]; }).length, allOn = opTab !== 'done' && L.length && L.every(function (r) { return opSel[r.id]; });
+    var types = {}; all.forEach(function (r) { types[r.type] = 1; });
+    var h = '<div class="page-h"><div><h1>통합 승인함</h1><p>참가사와 주최사가 올린 모든 신청을 최종 승인하거나 반려해요. 주최사 검토 중인 건도 직권으로 처리할 수 있어요.</p></div></div>';
+    h += kstrip([{ l: '승인 대기', v: cnt.op, u: '건', c: 'warn' }, { l: '주최사 검토 중', v: cnt.org, u: '건', c: 'info' }, { l: '처리 완료', v: cnt.done, u: '건', c: 'ok' }, { l: '안전 관련', v: all.filter(function (r) { return grp(r) !== 'done' && (r.type === '위험물' || r.flag); }).length, u: '건', c: 'bad' }]);
+    h += utabs([['op', '승인 대기', cnt.op], ['org', '주최사 검토 중', cnt.org], ['done', '처리 완료', cnt.done]], opTab, 'optab');
+    h += '<div class="toolbar">' + fchip('ap', 'from', '올린 곳', [['ex', '참가사', 'acc'], ['org', '주최사', 'info']]) + fchip('ap', 'type', '구분', Object.keys(types).map(function (t) { return [t, t]; }))
+      + (opTab !== 'done' ? '<label class="row" style="gap:6px;font-size:12.5px;color:var(--text-2)"><input type="checkbox" data-selall="1"' + (allOn ? ' checked' : '') + '>이 탭 전체 선택</label>' : '') + '</div>';
+    h += fsum(L.length, cnt[opTab], '건', 'ap');
+    if (opTab !== 'done') h += '<div class="bulkbar' + (nsel ? ' on' : '') + '"><span><b class="tnum">' + nsel + '건</b> 선택' + (nsel ? '' : ' · 카드의 체크박스를 눌러 고르세요') + '</span><div class="row"><button class="btn sm" data-act="selnone"' + (nsel ? '' : ' disabled') + '>선택 해제</button><button class="btn sm primary" data-act="batchok"' + (nsel ? '' : ' disabled') + '>' + ic('check') + nsel + '건 일괄 승인</button></div></div>';
+    return h + (L.length ? L.map(function (r) { return reqCard(r, opTab === 'done' ? 'view' : 'op'); }).join('') : '<div class="card">' + emptyState('check', opTab === 'op' ? '승인할 신청이 없어요' : '해당하는 신청이 없어요', factive('ap') ? '필터 때문에 안 보일 수 있어요.' : '새 신청이 오면 알림으로 알려 드려요.', factive('ap') ? ['<button class="btn sm" data-freset="ap">필터 초기화</button>'] : []) + '</div>');
   }
   function viewOpSchedule() {
     return '<div class="page-h"><div><h1>전시장 일정</h1><p>2026년 11~12월 홀별 행사와 설치 기간이에요. 행사명은 스마트제조 엑스포를 빼고 모두 가상이에요.</p></div></div><div class="card"><div class="card-b table-wrap">' + gantt(false) + '</div></div>';
@@ -940,24 +1002,375 @@
     var lv = { high: '<span class="pill bad">긴급</span>', mid: '<span class="pill warn">보통</span>', low: '<span class="pill">낮음</span>' };
     var sp = { new: '<span class="pill bad">미배정</span>', assigned: '<span class="pill info">처리 중</span>', done: '<span class="pill ok">완료</span>' };
     var h = '<div class="page-h"><div><h1>현장 이슈</h1><p>홀별 현장 문제와 주최사가 넘긴 문의를 담당 팀에 배정하고 닫아요.</p></div></div>';
-    h += '<div class="card"><div class="table-wrap"><table class="stack"><thead><tr><th>이슈</th><th>홀</th><th>등급</th><th>담당</th><th>상태</th><th></th></tr></thead><tbody>'
-      + D.issues.map(function (i) { var st = issueSt(i), team = (S.iss[i.id] || {}).team || i.team; return '<tr><td><div class="t-title">' + esc(i.title) + '</div><div class="t-desc">' + esc(i.ex) + ' · ' + i.at + '</div></td><td data-l="홀">' + i.hall + '</td><td data-l="등급">' + lv[i.lvl] + '</td><td data-l="담당"><label class="sr" for="tm-' + i.id + '">담당 팀</label><select id="tm-' + i.id + '" data-issteam="' + i.id + '"' + (st === 'done' ? ' disabled' : '') + '><option value="">선택</option>' + TEAMS.concat(team && TEAMS.indexOf(team) < 0 ? [team] : []).map(function (t) { return '<option' + (t === team ? ' selected' : '') + '>' + t + '</option>'; }).join('') + '</select></td><td data-l="상태">' + sp[st] + '</td><td>' + (st !== 'done' ? '<button class="btn sm" data-issdone="' + i.id + '">완료 처리</button>' : '') + '</td></tr>'; }).join('') + '</tbody></table></div></div>';
+    var I = D.issues, cs = { new: 0, assigned: 0, done: 0 }; I.forEach(function (i) { cs[issueSt(i)]++; });
+    h += kstrip([{ l: '긴급', v: I.filter(function (i) { return i.lvl === 'high' && issueSt(i) !== 'done'; }).length, u: '건', c: 'bad' }, { l: '미배정', v: cs.new, u: '건', c: 'warn' }, { l: '처리 중', v: cs.assigned, u: '건', c: 'info' }, { l: '완료', v: cs.done, u: '건', c: 'ok' }]);
+    var halls = {}; I.forEach(function (i) { halls[i.hall] = (halls[i.hall] || 0) + 1; });
+    h += '<div class="toolbar">' + fchip('iss', 'hall', '홀', Object.keys(halls).map(function (k) { return [k, k, null, halls[k]]; })) + fchip('iss', 'lvl', '등급', [['high', '긴급', 'bad'], ['mid', '보통', 'warn'], ['low', '낮음', 'n']]) + fchip('iss', 'st', '상태', [['new', '미배정', 'bad'], ['assigned', '처리 중', 'info'], ['done', '완료', 'ok']]) + '</div>';
+    var IL = I.filter(function (i) { return fpass('iss', 'hall', i.hall) && fpass('iss', 'lvl', i.lvl) && fpass('iss', 'st', issueSt(i)); });
+    h += fsum(IL.length, I.length, '건', 'iss');
+    h += '<div class="card">' + (IL.length ? '' : emptyState('search', '조건에 맞는 이슈가 없어요', '', ['<button class="btn sm" data-freset="iss">필터 초기화</button>'])) + '<div class="table-wrap"' + (IL.length ? '' : ' hidden') + '><table class="stack hov"><thead><tr><th>이슈</th><th>홀</th><th>등급</th><th>담당</th><th>상태</th><th></th></tr></thead><tbody>'
+      + IL.map(function (i) { var st = issueSt(i), team = (S.iss[i.id] || {}).team || i.team; return '<tr><td><div class="t-title">' + esc(i.title) + '</div><div class="t-desc">' + esc(i.ex) + ' · ' + i.at + '</div></td><td data-l="홀">' + i.hall + '</td><td data-l="등급">' + lv[i.lvl] + '</td><td data-l="담당"><label class="sr" for="tm-' + i.id + '">담당 팀</label><select id="tm-' + i.id + '" data-issteam="' + i.id + '"' + (st === 'done' ? ' disabled' : '') + '><option value="">선택</option>' + TEAMS.concat(team && TEAMS.indexOf(team) < 0 ? [team] : []).map(function (t) { return '<option' + (t === team ? ' selected' : '') + '>' + t + '</option>'; }).join('') + '</select></td><td data-l="상태">' + sp[st] + '</td><td>' + (st !== 'done' ? '<button class="btn sm" data-issdone="' + i.id + '">완료 처리</button>' : '') + '</td></tr>'; }).join('') + '</tbody></table></div></div>';
     var esq = allInq().filter(function (q) { return inqSt(q) === 'escalated'; });
     h += '<div class="card"><div class="card-h"><h2>주최사가 넘긴 문의</h2><span class="muted" style="font-size:12px">' + esq.length + '건</span></div><div class="card-b" style="display:flex;flex-direction:column;gap:10px">'
-      + (esq.length ? esq.map(function (q) { var res = answer(q.ask); return '<div class="verdict"><span class="ck warn">!</span><div style="flex:1;min-width:0"><b>' + esc(q.q) + '</b><div class="t-desc">' + esc(q.co) + ' · ' + q.at + '</div>' + (res.cites && res.cites.length ? '<div class="row" style="margin-top:6px">' + res.cites.map(function (c, k) { return cite(c, String(k + 1)); }).join('') + '</div>' : '<div class="t-desc" style="margin-top:4px">근거 문서 없음 · 운영사 판단 필요</div>') + '</div><button class="btn sm" data-inqdone="' + q.id + '">답변 완료</button></div>'; }).join('') : '<div class="empty">넘어온 문의가 없어요.</div>') + '</div></div>';
+      + (esq.length ? esq.map(function (q) { var res = answer(q.ask); return '<div class="verdict"><span class="ck warn">!</span><div style="flex:1;min-width:0"><b>' + esc(q.q) + '</b><div class="t-desc">' + esc(q.co) + ' · ' + q.at + '</div>' + (res.cites && res.cites.length ? '<div class="row" style="margin-top:6px">' + res.cites.map(function (c, k) { return cite(c, String(k + 1)); }).join('') + '</div>' : '<div class="t-desc" style="margin-top:4px">근거 문서 없음 · 운영사 판단 필요</div>') + '</div><button class="btn sm" data-inqdone="' + q.id + '">답변 완료</button></div>'; }).join('') : emptyState('chat', '넘어온 문의가 없어요', '주최사가 시설 문의를 이관하면 여기로 와요.')) + '</div></div>';
     return h;
   }
   var LOG_SEED = [{ at: '11.04 17:40', who: '운영사', text: '승인 · ㈜한빛로보틱스 · 참가업체 디렉토리 정보' }, { at: '11.04 16:05', who: '주최사', text: '반려 · ㈜한빛로보틱스 · 부스 디자인 도면 (Lay-out)' }, { at: '11.04 11:20', who: '운영사', text: '배정 · Hall A 화물출입구 2 반입 지연 → 홀매니저실' }];
   function logRows() { return (S.log || []).concat(LOG_SEED); }
   function viewOpLog() {
-    return '<div class="page-h"><div><h1>처리 이력</h1><p>세 역할이 승인·반려·배정한 기록이에요. 이 브라우저 안에서만 남아요.</p></div></div><div class="card"><div class="table-wrap"><table class="stack"><thead><tr><th>시각</th><th>처리자</th><th>내용</th></tr></thead><tbody>'
-      + logRows().map(function (l) { return '<tr><td data-l="시각" class="tnum">' + l.at + '</td><td data-l="처리자"><span class="role-pill ' + (l.who === '운영사' ? 'op' : l.who === '주최사' ? 'org' : 'ex') + '">' + esc(l.who) + '</span></td><td data-l="내용">' + esc(l.text) + '</td></tr>'; }).join('') + '</tbody></table></div></div>';
+    var A = logRows(), L = A.filter(function (l) { return fpass('log', 'who', l.who); }), wc = {}; A.forEach(function (l) { wc[l.who] = (wc[l.who] || 0) + 1; });
+    return '<div class="page-h"><div><h1>처리 이력</h1><p>세 역할이 승인·반려·배정한 기록이에요. 이 브라우저 안에서만 남아요.</p></div></div><div class="toolbar">' + fchip('log', 'who', '처리자', ['운영사', '주최사', '참가사'].map(function (k) { return [k, k, { 운영사: 'warn', 주최사: 'info', 참가사: 'acc' }[k], wc[k] || 0]; })) + '</div>' + fsum(L.length, A.length, '건', 'log') + '<div class="card"><div class="table-wrap tall"><table class="stack"><thead><tr><th>시각</th><th>처리자</th><th>내용</th></tr></thead><tbody>'
+      + L.map(function (l) { return '<tr><td data-l="시각" class="tnum">' + l.at + '</td><td data-l="처리자"><span class="role-pill ' + (l.who === '운영사' ? 'op' : l.who === '주최사' ? 'org' : 'ex') + '">' + esc(l.who) + '</span></td><td data-l="내용">' + esc(l.text) + '</td></tr>'; }).join('') + '</tbody></table></div></div>';
   }
+
+  /* ================= v3 · 피처링에서 가져온 공통 부품 ================= */
+  /* 상태 탭(밑줄) + 건수 */
+  function utabs(list, cur, attr) {
+    return '<div class="utabs" role="tablist">' + list.map(function (t) { return '<button role="tab" aria-selected="' + (t[0] === cur) + '" data-' + attr + '="' + t[0] + '" class="' + (t[0] === cur ? 'on' : '') + '">' + t[1] + (t[2] != null ? '<em class="tnum">' + t[2] + '</em>' : '') + '</button>'; }).join('') + '</div>';
+  }
+  /* KPI 상태 스트립: 색 점 + 건수 한 줄 */
+  function kstrip(items, extra) {
+    return '<div class="kstrip">' + items.map(function (x) { return '<div class="ks"><span class="ks-l">' + (x.c ? '<i class="sdot ' + x.c + '"></i>' : '') + x.l + '</span><b class="tnum">' + x.v + (x.u ? '<small>' + x.u + '</small>' : '') + '</b></div>'; }).join('') + (extra ? '<div class="ks-x">' + extra + '</div>' : '') + '</div>';
+  }
+  function quota(a, b, l) { var p = a / b; return '<span class="quota' + (p > .9 ? ' bad' : p > .7 ? ' warn' : '') + '">' + l + ' <b class="tnum">' + a + '</b><span class="tnum">/' + b + '</span></span>'; }
+  /* 빈 상태: 아이콘 + 제목 + 선행 조건 안내 + 바로가기 */
+  function emptyState(icon, title, desc, ctas) {
+    return '<div class="empty-st"><span class="es-ic">' + ic(icon) + '</span><b>' + title + '</b>' + (desc ? '<p>' + desc + '</p>' : '') + (ctas && ctas.length ? '<div class="row" style="justify-content:center">' + ctas.join('') + '</div>' : '') + '</div>';
+  }
+  function infoBanner(icon, title, desc, btn) {
+    return '<div class="info-bn"><span class="ib-ic">' + ic(icon) + '</span><div style="flex:1;min-width:0"><b>' + title + '</b><p>' + desc + '</p></div>' + (btn || '') + '</div>';
+  }
+  /* 필터 칩 드롭다운 (체크박스 + 상태 점) */
+  var FL = {}, FOPT = {};
+  function fsel(pg, key) { return ((FL[pg] || {})[key]) || {}; }
+  function fpass(pg, key, v) { var s = fsel(pg, key), on = Object.keys(s).filter(function (k) { return s[k]; }); return !on.length || !!s[v]; }
+  function factive(pg) { var f = FL[pg] || {}; return Object.keys(f).some(function (k) { return Object.keys(f[k]).some(function (v) { return f[k][v]; }); }); }
+  function fchip(pg, key, label, opts) {
+    FOPT[pg + '|' + key] = { label: label, opts: opts };
+    var s = fsel(pg, key), n = opts.filter(function (o) { return s[o[0]]; }).length;
+    return '<button class="fchip' + (n ? ' on' : '') + '" data-fchip="' + pg + '|' + key + '" aria-haspopup="true">' + label + (n ? '<b class="tnum">' + n + '</b>' : '') + ic('chev', ' class="cv" width="12" height="12"') + '</button>';
+  }
+  function fsum(shown, total, unit, pg) {
+    return '<div class="fsum"><span>현재 조건 기준 <b class="tnum">' + shown + unit + '</b> / 전체 ' + total + unit + ' · 기준일 11.05</span>' + (pg && factive(pg) ? '<button class="link-row" data-freset="' + pg + '">' + ic('reset', ' width="13" height="13"') + ' 필터 초기화</button>' : '') + '</div>';
+  }
+  function fchipPop(id) {
+    var o = FOPT[id], p = id.split('|'), s = fsel(p[0], p[1]);
+    return '<div class="pop-h"><b>' + o.label + '</b><button class="link-row" data-fclear="' + id + '">선택 해제</button></div><div class="pop-list">' + o.opts.map(function (x) { return '<label class="pop-opt"><input type="checkbox" data-fopt="' + id + '|' + x[0] + '"' + (s[x[0]] ? ' checked' : '') + '>' + (x[2] ? '<i class="sdot ' + x[2] + '"></i>' : '') + '<span>' + x[1] + '</span>' + (x[3] != null ? '<em class="tnum">' + x[3] + '</em>' : '') + '</label>'; }).join('') + '</div>';
+  }
+
+  /* 팝오버 (데스크톱은 기준 버튼 아래, 767px 이하는 바텀시트) */
+  var popAnchor = null, popJust = false;
+  function openPop(anchor, html, cls) {
+    var p = $('#pop');
+    if (p && !p.hidden && popAnchor === anchor) { closePop(); return; }
+    if (!p) { p = document.createElement('div'); p.id = 'pop'; p.setAttribute('role', 'dialog'); document.body.appendChild(p); }
+    p.className = 'pop ' + (cls || ''); p.innerHTML = html; p.hidden = false; popAnchor = anchor; popJust = true;
+    if (anchor) anchor.setAttribute('aria-expanded', 'true');
+    placePop();
+  }
+  function placePop() {
+    var p = $('#pop'); if (!p || p.hidden || !popAnchor) return;
+    if (innerWidth <= 767) { p.classList.add('sheet'); p.style.left = p.style.top = ''; return; }
+    p.classList.remove('sheet');
+    var r = popAnchor.getBoundingClientRect(), w = p.offsetWidth, h = p.offsetHeight;
+    var left = Math.min(Math.max(8, r.left), innerWidth - w - 8), top = r.bottom + 6;
+    if (top + h > innerHeight - 8 && r.top - h - 6 > 8) top = r.top - h - 6;
+    p.style.left = left + 'px'; p.style.top = Math.max(8, top) + 'px';
+  }
+  function closePop() { var p = $('#pop'); if (p) p.hidden = true; if (popAnchor) popAnchor.setAttribute('aria-expanded', 'false'); popAnchor = null; }
+  function refreshPop(html) { var p = $('#pop'); if (p && !p.hidden) { p.innerHTML = html; placePop(); } }
+
+  /* ---------- 알림 팝오버: 전체 / 읽지 않음 / 읽음 ---------- */
+  var NOTI_SEED = {
+    exhibitor: [{ id: 'ne1', from: '주최사', at: '11.03 16:05', t: '부스 디자인 도면이 반려됐어요', d: '통로 너비·벽면 이격거리 표기 누락 · 마감 11.06', go: 'submissions' }, { id: 'ne2', from: '운영사', at: '11.04 17:40', t: '참가업체 디렉토리 정보가 승인됐어요', go: 'submissions' }, { id: 'ne3', from: '주최사', at: '11.02 09:00', t: '기술지원 신청 취합 마감은 11.16이에요', go: 'schedule' }],
+    organizer: [{ id: 'no1', from: '참가사', at: '11.05 09:12', t: '미래오토텍이 화물출입구 크기를 물어봤어요', go: 'org-inbox' }, { id: 'no2', from: 'AI', at: '11.05 08:50', t: '케이드라이브 천장 배너가 하중 기준을 넘는 것 같아요', d: '180kg > 1Point 150kg', go: 'org-review' }, { id: 'no3', from: '콜드메일', at: '11.04 18:20', t: '한결로봇·그리드AMR이 참가 제안에 회신했어요', go: 'org-mail' }],
+    operator: [{ id: 'np1', from: '현장', at: '11.05 10:40', t: 'Hall B 급배수 누수가 접수됐어요', d: 'B-214 · 담당 미배정', go: 'op-issues' }, { id: 'np2', from: '주최사', at: '11.05 09:30', t: '기술지원 취합본 1차가 올라왔어요', go: 'op-approvals' }, { id: 'np3', from: '참가사', at: '11.03 11:00', t: '알파모션 위험물 반입 허가 신청이 들어왔어요', go: 'op-approvals' }]
+  };
+  var notiTab = 'all';
+  function notis() {
+    var me = D.roles[S.role].label;
+    var L = (S.log || []).filter(function (l) { if (l.who === me) return false; return S.role === 'exhibitor' ? /한빛로보틱스/.test(l.text) : true; }).map(function (l) {
+      var go = S.role === 'exhibitor' ? 'submissions' : S.role === 'organizer' ? (/문의/.test(l.text) ? 'org-inbox' : 'org-review') : (/문의|이슈/.test(l.text) ? 'op-issues' : 'op-approvals');
+      return { id: 'l' + l.at + l.text, from: l.who, at: l.at, t: l.text, go: go };
+    });
+    return L.concat(NOTI_SEED[S.role] || []);
+  }
+  function unreadN() { return notis().filter(function (n) { return !S.notiRead[n.id]; }).length; }
+  function notiHtml() {
+    var L = notis(), un = L.filter(function (n) { return !S.notiRead[n.id]; }), rd = L.length - un.length;
+    var shown = notiTab === 'unread' ? un : notiTab === 'read' ? L.filter(function (n) { return S.notiRead[n.id]; }) : L;
+    return '<div class="pop-h"><b>알림</b><div class="row" style="gap:10px"><button class="link-row" data-act="notiall"' + (un.length ? '' : ' disabled') + '>모두 읽기</button><button class="icon-btn" style="width:28px;height:28px" data-act="notiset" aria-label="알림 설정">' + ic('gear') + '</button></div></div>'
+      + utabs([['all', '전체', L.length], ['unread', '읽지 않음', un.length], ['read', '읽음', rd]], notiTab, 'ntab')
+      + '<div class="noti-list">' + (shown.length ? shown.map(function (n) { return '<button class="noti' + (S.notiRead[n.id] ? '' : ' new') + '" data-noti="' + esc(n.id) + '" data-ngo="' + (n.go || '') + '"><span class="nfrom">' + esc(n.from) + '</span><span class="nt">' + esc(n.t) + '</span>' + (n.d ? '<span class="nd">' + esc(n.d) + '</span>' : '') + '<span class="nat tnum">' + n.at + '</span></button>'; }).join('')
+        : emptyState('bell', notiTab === 'unread' ? '읽지 않은 알림이 없어요' : '아직 알림이 없어요', '승인·반려·문의 답변이 생기면 여기로 모여요.')) + '</div>';
+  }
+  function paintBell() { var d = $('.topbar .dot'); if (d) d.hidden = !S.role || !unreadN(); }
+
+  /* ---------- "?" 화면 안내 팝오버 ---------- */
+  var HELP = {
+    home: { q: '대시보드에서 무엇을 보나요?', know: ['개막까지 남은 날과 준비 단계', '필수 서류·기술지원 신청 진행률', 'AI가 먼저 찾은 위험(반려 사유, 반입 규격)'], parts: ['AI 입력창과 시나리오 카드', '전시 일정 · 준비 단계', 'KPI 4개', '미완료 할 일 · 공지'] },
+    apply: { q: '신청 전에 무엇을 하나요?', know: ['신청 서류 체크리스트', '신청 마감 캘린더', '희망 홀의 도면 값'], parts: ['AI 입력창', '체크리스트', '마감 캘린더'] },
+    schedule: { q: '세부 일정표는 어떻게 쓰나요?', know: ['담당자별 할 일과 마감', '주최사·코엑스 일정'], parts: ['체크리스트', '11월 캘린더'], warn: '체크하면 대시보드 진행률에 바로 반영돼요.' },
+    submissions: { q: '제출·신청 관리에서 알 수 있는 것', know: ['서류마다 필수 여부와 제출처', '참가사 제출 → 주최사 검토 → 운영사 승인 단계', '반려·보류 사유'], parts: ['상태 탭(건수)', '요약 스트립', '서류 표'], warn: '조건부 서류는 AI 사전 점검 답에 따라 필수 여부가 바뀌어요.' },
+    check: { q: 'AI 사전 점검은 무엇을 하나요?', know: ['반려 이력과 규정으로 수정본 점검', '부스 계획에 따라 필요한 서류 판정'], parts: ['① 제출 전 점검', '② 조건별 필수 판정'], warn: '판정은 규칙으로, 설명은 AI가 맡아요.' },
+    library: { q: 'Library의 문서는 무엇인가요?', know: ['AI 답변의 근거 문서', '문서별 검증 단계(원문 확인 · 검토 필요)'], parts: ['안내서·규정', 'COEX 웹 지식', '도면', '연락처'] },
+    halls: { q: '홀 맵·도면에서 알 수 있는 것', know: ['홀 규격(면적·천장고·하중·화물출입구)', '부스 입실·공실과 내 부스 위치', '통로를 따라 계산한 길찾기'], parts: ['홀 탭', '규격 표', '2D/3D 맵', '길찾기', '자료 간 차이'], warn: '부스 배치·번호·편의시설 위치는 데모 개략값이에요.' },
+    company: { q: '기업 정보는 어디에 쓰이나요?', know: ['신청서·디렉토리에 자동으로 채워지는 정보', '담당자와 부스 App 권한'], parts: ['회사 정보', '담당자 표 · 초대'] },
+    booth: { q: '부스 App은 무엇인가요?', know: ['전시 기간 현장용 화면', '리드 수집·현장 요청·현장 AI'], parts: ['오늘', '리드', '요청', 'AI'] },
+    'org-home': { q: '주최 대시보드에서 무엇을 보나요?', know: ['참가사 준비 단계별 진행률', '검토 대기 서류와 새 문의', 'AI가 먼저 찾은 위험'], parts: ['AI 입력창', 'KPI 4개', 'AI 인사이트 질문', '단계별 현황 · AI 브리핑'] },
+    'org-exhibitors': { q: '참가사 현황은 어떻게 쓰나요?', know: ['참가사별 필수 서류 진행률', '반려·문의 건수와 상태'], parts: ['상태 스트립', '필터 칩 · 검색', '선택 후 일괄 독려', '행 ··· 메뉴'], warn: '㈜한빛로보틱스는 참가사 화면의 실제 상태가 반영돼요.' },
+    'org-review': { q: '서류 1차 검토는 어떻게 하나요?', know: ['참가사 서류를 근거 문서와 대조', '통과하면 운영사 승인함으로 넘어감'], parts: ['검토 대기 · 보류 · 통과 · 반려 탭', '서류 카드'], warn: '보류는 참가사에게 확인을 요청하고 결정을 미루는 상태예요.' },
+    'org-inbox': { q: '문의 관리는 어떻게 하나요?', know: ['참가사 문의와 AI 답변 초안', '근거로 답할 수 없으면 확정 보류'], parts: ['상태 탭', '문의 목록', '답변 · 근거 · 이관'] },
+    'org-map': { q: '부스 배정 맵', know: ['Hall C 입실·공실'], parts: ['맵', '부스 카드 · 배정'], warn: '배정은 이 브라우저에서만 저장돼요.' },
+    'org-relay': { q: '운영사 제출 현황', know: ['주최사가 운영사에 올린 신청과 승인 상태'], parts: ['신청 카드', '새 신청'] },
+    'org-mail': { q: '콜드메일 발송은 어떻게 하나요?', know: ['협력업체·개별섭외업체에 개인화 메일 일괄 발송', '발송·열람·회신 현황'], parts: ['이용 현황 스트립', '상태 탭', '메일 표', '3단계 편집기(받는 사람 → 작성 → 확인)'], warn: '데모라 실제 메일은 나가지 않아요. 수신 거부한 곳은 자동으로 빠져요.' },
+    'op-home': { q: '통합 관제에서 무엇을 보나요?', know: ['승인 대기와 현장 이슈', '전시장 일정'], parts: ['KPI 4개', 'AI 인사이트', '일정 간트', '브리핑 · 처리 이력'] },
+    'op-approvals': { q: '통합 승인함', know: ['참가사·주최사 신청 전체', '주최사 검토 중인 건의 직권 처리'], parts: ['상태 탭', '선택 후 일괄 승인', '반려 사유 AI 초안'] },
+    'op-schedule': { q: '전시장 일정', know: ['11~12월 홀별 행사와 설치 기간'], parts: ['간트 차트'] },
+    'op-map': { q: '홀 맵', know: ['홀별 입실·공실과 동선'], parts: ['홀 탭', '맵', '길찾기'] },
+    'op-issues': { q: '현장 이슈', know: ['홀별 현장 문제와 등급', '주최사가 넘긴 문의'], parts: ['상태 스트립', '필터 칩', '이슈 표 · 담당 배정'] },
+    'op-log': { q: '처리 이력', know: ['세 역할의 승인·반려·배정 기록'], parts: ['처리자 필터', '이력 표'] },
+    'op-mail': { q: '협력업체 메일', know: ['전기·급배수·통신 등 협력업체에 일괄 안내·요청'], parts: ['이용 현황', '상태 탭', '3단계 편집기'], warn: '데모라 실제 메일은 나가지 않아요.' }
+  };
+  function helpPop(r) {
+    var H = HELP[r] || { q: '이 화면은?', know: [routesFor()[r].t + ' 화면이에요.'], parts: [] };
+    return '<div class="pop-h"><b>' + esc(H.q) + '</b></div><div class="help-b"><div class="h-sec"><span>이 화면에서 알 수 있는 것</span><ul>' + H.know.map(function (k) { return '<li>' + esc(k) + '</li>'; }).join('') + '</ul></div>'
+      + (H.parts.length ? '<div class="h-sec"><span>화면 구성</span><div class="h-parts">' + H.parts.map(function (k, i) { return '<div><i>' + (i + 1) + '</i>' + esc(k) + '</div>'; }).join('') + '</div></div>' : '')
+      + (H.warn ? '<div class="h-warn">' + ic('alert', ' width="15" height="15" style="flex:none;margin-top:2px"') + '<span>' + esc(H.warn) + '</span></div>' : '') + '</div>';
+  }
+  function injectHelp(cur, c) {
+    if (cur === 'assistant') return;
+    var chip = '<button class="qchip" data-help="' + cur + '" aria-haspopup="true"><b>?</b><span>' + esc((HELP[cur] || {}).q || '이 화면은?') + '</span></button>';
+    var h1 = c.querySelector('.page-h h1'), hero = c.querySelector('.hero');
+    if (h1) h1.insertAdjacentHTML('beforeend', chip);
+    else if (hero) hero.insertAdjacentHTML('afterbegin', '<div class="hero-help">' + chip + '</div>');
+  }
+
+  /* ---------- 화면별 AI 넛지 (스크롤하면 문구가 바뀜) ---------- */
+  var NUDGES = {
+    home: [['도면 수정본에 반려 사유가 남아 있어요. 지금 볼까요?', { go: 'check' }], ['이번 주 마감 서류를 정리해 드릴까요?', { q: '이번 주 마감 뭐 있어?' }]],
+    apply: [['Hall A 분할 사용이 되는지 확인해 드릴까요?', { q: 'Hall A 분할 사용 가능해?' }], ['정기대관 절차를 정리해 드릴까요?', { q: '코엑스 정기대관 절차 알려줘' }]],
+    schedule: [['7일 안에 끝낼 일을 정리해 드릴까요?', { q: '이번 주 마감 뭐 있어?' }]],
+    submissions: [['반려된 도면을 다시 내기 전에 점검해 드릴까요?', { go: 'check' }], ['커피머신을 쓰면 급배수 신청이 필요해요. 확인할까요?', { q: '커피머신 급배수 신청' }]],
+    check: [['수정 요청 초안을 대신 써 드릴까요?', { q: '박정훈 님에게 수정 요청 초안 써줘' }]],
+    library: [['찾는 규정을 문장으로 물어보시겠어요?', { q: 'Hall C 천장 배너 하중 얼마까지야?' }]],
+    halls: [['반입 차량 높이를 화물출입구와 비교해 드릴까요?', { q: 'Hall C 화물출입구 크기는?' }], ['로딩독 진입 동선을 알려 드릴까요?', { q: '3층 로딩독 어떻게 들어가?' }]],
+    'org-home': [['서류가 늦은 참가사를 정리해 드릴까요?', { q: '서류 지연 참가사 정리해줘' }], ['새 문의에 답변 초안을 확인할까요?', { go: 'org-inbox' }]],
+    'org-exhibitors': [['지연 참가사에 독려 알림을 보낼까요?', { act: 'nudgeall' }], ['진행률이 낮은 참가사를 골라 드릴까요?', { q: '서류 지연 참가사 정리해줘' }]],
+    'org-review': [['하중 초과 의심 신청의 기준을 볼까요?', { q: 'Hall C 천장 배너 하중 얼마까지야?' }]],
+    'org-inbox': [['자주 오는 문의 주제를 정리해 드릴까요?', { q: '참가사 문의 많이 온 주제는?' }]],
+    'org-map': [['공실만 골라 볼까요?', { act: 'vacant' }]],
+    'org-relay': [['반입 배정표를 화물출입구 규격과 맞춰 볼까요?', { q: 'Hall C 화물출입구 크기는?' }]],
+    'org-mail': [['개별섭외 회신률을 알려 드릴까요?', { q: '개별섭외 회신률 알려줘' }]],
+    'op-home': [['오늘 먼저 승인할 신청을 골라 드릴까요?', { q: '오늘 먼저 승인할 신청 알려줘' }]],
+    'op-approvals': [['마감이 가까운 신청부터 정리해 드릴까요?', { q: '오늘 먼저 승인할 신청 알려줘' }]],
+    'op-issues': [['누수 이슈의 점검 기준을 볼까요?', { q: '전시 기간 중 급배수 점검은?' }]],
+    'op-schedule': [['Hall C 반입 계획 승인 건을 볼까요?', { go: 'op-approvals' }]],
+    'op-map': [['화물출입구 규격을 알려 드릴까요?', { q: 'Hall C 화물출입구 크기는?' }]],
+    'op-mail': [['협력업체 회신 현황을 알려 드릴까요?', { q: '협력업체 회신 현황 알려줘' }]]
+  };
+  function nudgeHtml(cur) {
+    var L = NUDGES[cur]; if (!L || S.nudgeOff[cur] || miniOpen) return '';
+    var i = window.scrollY > 280 && L[1] ? 1 : 0;
+    return '<div class="nudge" id="nudge" data-i="' + i + '" data-r="' + cur + '">' + ic('spark', ' width="15" height="15" style="flex:none"') + '<button class="nudge-t" data-nudgego="1">' + esc(L[i][0]) + '</button><button data-act="nudge-x" aria-label="이 화면에서 닫기">' + ic('x', ' width="14" height="14"') + '</button></div>';
+  }
+  function nudgeGo() {
+    var n = $('#nudge'); if (!n) return; var a = NUDGES[n.dataset.r][+n.dataset.i][1];
+    if (a.q) { S.active = null; go('assistant'); setTimeout(function () { ask(a.q, { fresh: true }); }, 30); }
+    else if (a.go) go(a.go);
+    else if (a.act === 'nudgeall') $('[data-act=nudgeall]') && $('[data-act=nudgeall]').click();
+    else if (a.act === 'vacant') { MS.filter = 'vacant'; soft(); }
+  }
+
+  /* ---------- 행 ··· 메뉴 ---------- */
+  function rowMenuPop(kind, id) {
+    if (kind === 'ex') return '<div class="menu"><button data-nudge="' + esc(id) + '">' + ic('bell') + '독려 알림 보내기</button><button data-exmap="' + esc(id) + '">' + ic('map') + '부스 위치 보기</button><button data-go="org-review">' + ic('check') + '서류 검토로 가기</button></div>';
+    if (kind === 'mail') return '<div class="menu"><button data-mopen="' + id + '">' + ic('doc') + '열기</button><button class="danger" data-mdel="' + id + '">' + ic('x') + '삭제</button></div>';
+    return '';
+  }
+
+  /* ================= 콜드메일 일괄 발송 ================= */
+  var MC = D.mailContacts, MT = D.mailTemplates, mailTab = 'all', mailEd = null;
+  var MST = { new: ['', '미접촉'], sent: ['info', '발송함'], opened: ['acc', '열람'], replied: ['ok', '회신'], optout: ['bad', '수신 거부'] };
+  function mailOwner() { return S.role === 'operator' ? 'operator' : 'organizer'; }
+  function mailsAll() {
+    var mine = (S.mails || []), ids = {}; mine.forEach(function (m) { ids[m.id] = 1; });
+    return mine.concat(D.mailSeed.filter(function (m) { return !ids[m.id]; })).filter(function (m) { return m.owner === mailOwner() && !S.mailDel[m.id]; });
+  }
+  function contactOf(id) { return MC.prospect.concat(MC.partner).filter(function (c) { return c.id === id; })[0]; }
+  function cst(c) { return S.cst[c.id] || c.st; }
+  function merge(s, c) { return String(s || '').replace(/\{회사명\}/g, c.co).replace(/\{담당자\}/g, c.who).replace(/\{분야\}/g, c.cat).replace(/\{부스위치\}/g, 'Hall C 공실 구역'); }
+  function mailCounts(L) { return { all: L.length, draft: L.filter(function (m) { return m.st === 'draft'; }).length, sent: L.filter(function (m) { return m.st === 'sent'; }).length }; }
+  function monthUsed() { return mailsAll().filter(function (m) { return m.st !== 'draft'; }).reduce(function (n, m) { return n + m.to.length; }, 0) + 41; }
+  function viewMail() {
+    if (mailEd) return viewMailEditor();
+    var op = S.role === 'operator', L = mailsAll(), cnt = mailCounts(L), sent = L.filter(function (m) { return m.st === 'sent'; });
+    var nTo = sent.reduce(function (n, m) { return n + m.to.length; }, 0), nOpen = sent.reduce(function (n, m) { return n + m.open; }, 0), nRep = sent.reduce(function (n, m) { return n + m.reply; }, 0);
+    var optout = (op ? MC.partner : MC.prospect.concat(MC.partner)).filter(function (c) { return cst(c) === 'optout'; }).length;
+    var shown = L.filter(function (m) { return mailTab === 'all' || m.st === mailTab; });
+    var h = '<div class="page-h"><div><h1>' + (op ? '협력업체 메일' : '콜드메일 발송') + '</h1><p>' + (op ? '전기·급배수·통신 협력업체에' : '협력업체와 개별섭외업체에') + ' 근거 문서 값이 들어간 메일을 한 번에 보내요.</p></div><div class="row"><button class="btn" data-help="' + route() + '">' + ic('book') + '발송 가이드</button><button class="btn primary" data-mx="new">+ 새 ' + (op ? '메일' : '콜드메일') + '</button></div></div>';
+    h += infoBanner('send', '받는 사람 고르기 → AI 초안 → 확인·발송, 3단계예요', '받는 사람마다 {회사명}·{담당자}가 채워지고, 수신 거부한 곳은 자동으로 빠져요. 데모라 실제 메일은 나가지 않아요.', '<button class="btn sm" data-help="' + route() + '">사용 방법 보기</button>');
+    h += kstrip([{ l: '보낸 메일', v: sent.length, u: '건' }, { l: '받은 곳', v: nTo, u: '곳' }, { l: '열람률', v: nTo ? Math.round(nOpen / nTo * 100) : 0, u: '%', c: 'acc' }, { l: '회신', v: nRep, u: '곳', c: 'ok' }, { l: '수신 거부', v: optout, u: '곳', c: 'bad' }], quota(monthUsed(), 500, '이번 달 발송'));
+    h += utabs([['all', '전체', cnt.all], ['draft', '작성 중', cnt.draft], ['sent', '발송 완료', cnt.sent]], mailTab, 'mtab');
+    if (!shown.length) return h + '<div class="card">' + emptyState('send', mailTab === 'draft' ? '작성 중인 메일이 없어요' : '아직 보낸 메일이 없어요', '받는 사람을 고르면 AI가 근거가 들어간 초안을 써 줘요.', ['<button class="btn primary sm" data-mx="new">+ 새 메일 쓰기</button>']) + '</div>';
+    var stp = { draft: '<span class="pill warn">작성 중</span>', sent: '<span class="pill ok">발송 완료</span>' };
+    h += '<div class="card"><div class="table-wrap"><table class="stack hov"><thead><tr><th>메일</th><th>받는 곳</th><th>열람</th><th>회신</th><th>상태</th><th>날짜</th><th></th></tr></thead><tbody>'
+      + shown.map(function (m) {
+        return '<tr class="clickrow" data-mopen="' + m.id + '"><td><div class="t-title trunc" data-tip="' + esc(m.title) + '">' + esc(m.title) + '</div><div class="t-desc"><span class="pill ' + (m.kind === 'partner' ? 'info' : 'acc') + '" style="font-size:10.5px">' + (m.kind === 'partner' ? '협력업체' : '개별섭외') + '</span> ' + esc(MT[m.tpl].n.split(' (')[0]) + '</div></td>'
+          + '<td data-l="받는 곳" class="tnum">' + m.to.length + '곳</td><td data-l="열람" class="tnum">' + (m.st === 'sent' ? m.open + ' <span class="muted">(' + Math.round(m.open / m.to.length * 100) + '%)</span>' : '—') + '</td><td data-l="회신" class="tnum">' + (m.st === 'sent' ? m.reply : '—') + '</td><td data-l="상태">' + stp[m.st] + '</td><td data-l="날짜" class="tnum">' + esc(m.at) + '</td>'
+          + '<td><button class="rowmenu" data-rowmenu="mail|' + m.id + '" aria-label="더 보기">' + ic('more') + '</button></td></tr>';
+      }).join('') + '</tbody></table></div></div>';
+    return h;
+  }
+  /* 편집기 */
+  function newMail(kind, to) {
+    kind = S.role === 'operator' ? 'partner' : (kind || 'prospect');
+    mailEd = { id: 'mx' + Date.now(), step: 1, kind: kind, to: {}, tpl: kind === 'prospect' ? 'recruit' : 'quote', title: '', ad: kind === 'prospect', saved: nowStr().slice(6), pv: 0, q: '', excl: true };
+    (to || []).forEach(function (id) { mailEd.to[id] = true; });
+    applyTpl();
+  }
+  function applyTpl() { var t = MT[mailEd.tpl]; mailEd.subject = t.subject; mailEd.body = t.body; mailEd.title = mailEd.title || (t.n.split(' (')[0] + ' · ' + md(D.today)); }
+  function edTo() { return Object.keys(mailEd.to).filter(function (k) { return mailEd.to[k]; }); }
+  function edPool() {
+    var pool = MC[mailEd.kind];
+    return pool.filter(function (c) {
+      var s = cst(c);
+      if (mailEd.q && (c.co + c.who + c.email + c.cat).indexOf(mailEd.q) < 0) return false;
+      return fpass('mr', 'cat', c.cat) && fpass('mr', 'st', s) && fpass('mr', 'past', c.past);
+    });
+  }
+  function edSaved() { mailEd.saved = nowStr().slice(6); var s = $('#ed-saved'); if (s) { s.textContent = '자동 저장됨 ' + mailEd.saved; s.classList.remove('flash'); void s.offsetWidth; s.classList.add('flash'); } }
+  function edValid() { if (mailEd.step === 1) return edTo().length > 0; if (mailEd.step === 2) return !!(mailEd.subject.trim() && mailEd.body.trim()); return true; }
+  function edSubject(c) { return (mailEd.kind === 'prospect' && mailEd.ad ? '(광고) ' : '') + merge(mailEd.subject, c); }
+  function viewMailEditor() {
+    var E = mailEd, n = edTo().length, steps = ['받는 사람', '메일 작성', '확인·발송'];
+    var h = '<div class="ed-head"><div class="row" style="min-width:0;flex:1"><span class="stepb">STEP ' + E.step + '</span><label class="sr" for="ed-title">메일 이름</label><input class="ed-title" id="ed-title" value="' + esc(E.title) + '">' + ic('pencil', ' width="15" height="15" style="color:var(--text-3)"') + '<span class="saved" id="ed-saved">자동 저장됨 ' + E.saved + '</span></div>'
+      + '<div class="row"><button class="btn" data-mx="exit">나가기</button>' + (E.step > 1 ? '<button class="btn" data-mx="prev">이전</button>' : '') + (E.step < 3 ? '<button class="btn primary" data-mx="next"' + (edValid() ? '' : ' disabled') + '>다음</button>' : '<button class="btn primary" data-mx="send">' + ic('send') + n + '곳에 보내기</button>') + '</div></div>';
+    h += '<ol class="stepper">' + steps.map(function (s, i) { return '<li class="' + (i + 1 < E.step ? 'done' : i + 1 === E.step ? 'on' : '') + '"><i>' + (i + 1 < E.step ? '✓' : i + 1) + '</i>' + s + '</li>'; }).join('') + '</ol>';
+    if (E.step === 1) h += edStep1(); else if (E.step === 2) h += edStep2(); else h += edStep3();
+    return h;
+  }
+  function edStep1() {
+    var E = mailEd, pool = MC[E.kind], L = edPool(), n = edTo().length, op = S.role === 'operator';
+    var pg = L, cats = {}; pool.forEach(function (c) { cats[c.cat] = (cats[c.cat] || 0) + 1; });
+    var selectable = function (c) { var s = cst(c); return s !== 'optout' && !(E.excl && s === 'replied'); };
+    var pgSel = pg.filter(selectable), allOn = pgSel.length && pgSel.every(function (c) { return E.to[c.id]; });
+    var h = (op ? '' : '<div class="seg" role="group" aria-label="받는 사람 종류" style="max-width:420px"><button data-mkind="prospect" class="' + (E.kind === 'prospect' ? 'on' : '') + '">개별섭외업체 <span class="muted tnum">' + MC.prospect.length + '</span></button><button data-mkind="partner" class="' + (E.kind === 'partner' ? 'on' : '') + '">협력업체 <span class="muted tnum">' + MC.partner.length + '</span></button></div>');
+    h += '<div class="toolbar">' + fchip('mr', 'cat', '분야', Object.keys(cats).map(function (k) { return [k, k, null, cats[k]]; }))
+      + fchip('mr', 'st', '상태', Object.keys(MST).map(function (k) { return [k, MST[k][1], MST[k][0] || 'n', pool.filter(function (c) { return cst(c) === k; }).length]; }))
+      + fchip('mr', 'past', E.kind === 'prospect' ? '참가 이력' : '코엑스 등록', (E.kind === 'prospect' ? ['2025 참가', '2024 참가', '미참가'] : ['코엑스 등록', '미등록']).map(function (k) { return [k, k]; }))
+      + '<label class="search grow-s">' + ic('search', ' width="14" height="14"') + '<span class="sr">회사 검색</span><input id="mr-q" placeholder="회사·담당자·이메일 검색" value="' + esc(E.q) + '"></label>'
+      + '<label class="row" style="gap:6px;font-size:12.5px;color:var(--text-2)"><input type="checkbox" data-mexcl="1"' + (E.excl ? ' checked' : '') + '>이미 회신한 곳 빼기</label></div>';
+    h += fsum(L.length, pool.length, '곳', 'mr');
+    if (!L.length) return h + '<div class="card">' + emptyState('search', '조건에 맞는 곳이 없어요', '필터를 바꾸거나 초기화해 보세요.', ['<button class="btn sm" data-freset="mr">필터 초기화</button>']) + '</div>' + edBar();
+    h += '<div class="card"><div class="table-wrap tall freeze"><table class="hov"><thead><tr><th class="cbx"><input type="checkbox" data-mall="1" aria-label="보이는 곳 전체 선택"' + (allOn ? ' checked' : '') + '></th><th>회사</th><th>분야</th><th>담당</th><th>이메일</th><th>' + (E.kind === 'prospect' ? '참가 이력' : '코엑스 등록') + '</th><th>상태</th></tr></thead><tbody>'
+      + pg.map(function (c) {
+        var s = cst(c), can = selectable(c), on = !!E.to[c.id];
+        return '<tr class="' + (on ? 'sel' : '') + (can ? '' : ' off') + '"><td class="cbx"><input type="checkbox" data-mto="' + c.id + '" aria-label="' + esc(c.co) + ' 선택"' + (on ? ' checked' : '') + (can ? '' : ' disabled') + '></td><td><b>' + esc(c.co) + '</b></td><td>' + esc(c.cat) + '</td><td>' + esc(c.who) + '</td><td class="mono trunc" style="max-width:220px" data-tip="' + esc(c.email) + '">' + esc(c.email) + '</td><td>' + esc(c.past) + '</td><td><span class="pill ' + MST[s][0] + '">' + MST[s][1] + '</span></td></tr>';
+      }).join('') + '</tbody></table></div></div>';
+    return h + edBar();
+  }
+  function edBar() { var n = edTo().length; return '<div class="bulkbar' + (n ? ' on' : '') + '"><span><b class="tnum">' + n + '곳</b> 선택 · ' + quota(monthUsed() + n, 500, '이번 달 발송') + '</span><div class="row"><button class="btn sm" data-mx="clear"' + (n ? '' : ' disabled') + '>선택 해제</button><button class="btn sm primary" data-mx="next"' + (n ? '' : ' disabled') + '>다음 · 메일 작성</button></div></div>'; }
+  function edStep2() {
+    var E = mailEd, to = edTo().map(contactOf), c = to[E.pv % to.length] || to[0];
+    var tpls = Object.keys(MT).filter(function (k) { return MT[k].kind === E.kind; });
+    var h = '<div class="ed2"><div class="card"><div class="card-b" style="display:flex;flex-direction:column;gap:12px">'
+      + '<div class="field"><label for="ed-tpl">템플릿</label><select id="ed-tpl" data-mtpl="1">' + tpls.map(function (k) { return '<option value="' + k + '"' + (k === E.tpl ? ' selected' : '') + '>' + esc(MT[k].n) + '</option>'; }).join('') + '</select></div>'
+      + '<div class="field"><label for="ed-subj">제목 <span class="req">*</span></label><input id="ed-subj" value="' + esc(E.subject) + '">'
+      + (E.kind === 'prospect' ? '<label class="row hint" style="gap:6px"><input type="checkbox" data-mad="1"' + (E.ad ? ' checked' : '') + '>제목 앞에 (광고) 붙이고 끝에 수신 거부 안내 넣기 <span class="pill warn" style="font-size:10.5px">권장</span></label>' : '') + '</div>'
+      + '<div class="field"><label for="ed-body">본문 <span class="req">*</span></label><div class="row" style="gap:6px">' + ['{회사명}', '{담당자}', '{분야}', '{부스위치}'].map(function (t) { return '<button class="chip" data-mtag="' + t + '">' + t + '</button>'; }).join('') + '</div><textarea id="ed-body" rows="12">' + esc(E.body) + '</textarea><p class="hint"><span class="tnum" id="ed-len">' + E.body.length + '</span>자 · {중괄호} 자리는 받는 곳마다 바뀌어요</p></div>'
+      + '<div><div class="t-desc" style="margin-bottom:6px">초안에 들어간 근거 · 원문 값으로 확인했어요</div><div class="row">' + MT[E.tpl].cites.map(function (s, i) { return cite(s, String(i + 1)); }).join('') + '</div></div>'
+      + '<div class="row"><span class="t-desc">첨부</span><span class="chip">' + ic('clip', ' width="12" height="12"') + (E.kind === 'prospect' ? '참가 안내서(데모).pdf' : '설치 일정표(데모).xlsx') + '</span><span class="chip">' + ic('map', ' width="12" height="12"') + 'Hall C 부스 배치도(데모).png</span></div>'
+      + '</div></div><div class="card pv"><div class="card-h"><h2>미리보기</h2><div class="row" style="gap:4px"><button class="icon-btn" style="width:28px;height:28px" data-mpv="-1" aria-label="이전 받는 곳">‹</button><span class="tnum muted" style="font-size:12px" id="pv-n">' + ((E.pv % to.length) + 1) + ' / ' + to.length + '</span><button class="icon-btn" style="width:28px;height:28px" data-mpv="1" aria-label="다음 받는 곳">›</button></div></div><div class="card-b" id="pv">' + pvHtml(c) + '</div></div></div>';
+    return h;
+  }
+  function pvHtml(c) {
+    var E = mailEd;
+    return '<dl class="meta-grid"><dt>받는 사람</dt><dd>' + esc(c.who) + ' · ' + esc(c.co) + '<br><span class="mono muted">' + esc(c.email) + '</span></dd><dt>제목</dt><dd><b>' + esc(edSubject(c)) + '</b></dd></dl><div class="mail-body">' + esc(merge(E.body, c)).replace(/\n/g, '<br>') + (E.kind === 'prospect' && E.ad ? '<div class="optout">이 메일은 전시 참가 제안을 위해 보냈어요. 더 받지 않으려면 회신으로 "수신 거부"라고 보내 주세요.</div>' : '') + '</div>';
+  }
+  function paintPv() { var to = edTo().map(contactOf), c = to[mailEd.pv % to.length]; var p = $('#pv'); if (p && c) p.innerHTML = pvHtml(c); var n = $('#pv-n'); if (n) n.textContent = ((mailEd.pv % to.length) + 1) + ' / ' + to.length; var l = $('#ed-len'); if (l) l.textContent = mailEd.body.length; var nx = $('[data-mx=next]'); if (nx) nx.disabled = !edValid(); }
+  function edStep3() {
+    var E = mailEd, to = edTo().map(contactOf), pool = MC[E.kind];
+    var excluded = pool.filter(function (c) { var s = cst(c); return s === 'optout' || (E.excl && s === 'replied'); }).length;
+    var unknown = (E.subject + E.body).match(/\{[^}]+\}/g) || [], bad = unknown.filter(function (t) { return ['{회사명}', '{담당자}', '{분야}', '{부스위치}'].indexOf(t) < 0; });
+    var checks = [[true, '받는 곳 ' + to.length + '곳 모두 {회사명}·{담당자}가 채워져요'], [!bad.length, bad.length ? '알 수 없는 자리표시 ' + bad.join(', ') + ' 가 있어요' : '알 수 없는 자리표시가 없어요'], [true, '수신 거부·' + (E.excl ? '이미 회신한 곳 ' : '') + excluded + '곳은 자동으로 뺐어요'], [true, '근거 값 ' + MT[E.tpl].cites.length + '개는 원문과 대조했어요']];
+    if (E.kind === 'prospect') checks.push([E.ad, E.ad ? '제목에 (광고) 표기와 수신 거부 안내가 들어가요' : '(광고) 표기가 꺼져 있어요. 영리 목적 제안 메일이면 켜 두세요']);
+    return '<div class="grid g-2"><div class="card"><div class="card-h"><h2>보내기 전 확인</h2></div><div class="card-b"><dl class="meta-grid"><dt>메일 이름</dt><dd>' + esc(E.title) + '</dd><dt>받는 곳</dt><dd>' + to.length + '곳 · ' + (E.kind === 'prospect' ? '개별섭외업체' : '협력업체') + '<div class="t-desc">' + esc(to.slice(0, 4).map(function (c) { return c.co; }).join(', ')) + (to.length > 4 ? ' 외 ' + (to.length - 4) + '곳' : '') + '</div></dd><dt>제목</dt><dd>' + esc(edSubject(to[0])) + '</dd><dt>템플릿</dt><dd>' + esc(MT[E.tpl].n) + '</dd></dl>'
+      + '<div style="margin-top:14px">' + checks.map(function (x) { return '<div class="check-item"><span class="ck ' + (x[0] ? 'ok' : 'warn') + '">' + (x[0] ? '✓' : '!') + '</span><div style="font-size:13px">' + esc(x[1]) + '</div></div>'; }).join('') + '</div></div></div>'
+      + '<div class="card"><div class="card-h"><h2>보내기 전에</h2></div><div class="card-b" style="display:flex;flex-direction:column;gap:12px"><p class="muted" style="font-size:13px;margin:0">받는 곳마다 따로 한 통씩 나가요. 다른 받는 사람의 주소는 보이지 않아요.</p><div class="verdict">' + ic('alert', ' width="16" height="16" style="flex:none;margin-top:2px;color:var(--warn)"') + '<div class="t-desc" style="margin:0">보낸 메일은 되돌릴 수 없어요. 데모라 실제로는 나가지 않고 상태만 바뀌어요.</div></div></div></div></div>';
+  }
+  function edSaveDraft() {
+    var E = mailEd, m = { id: E.id, title: E.title || '제목 없는 메일', kind: E.kind, tpl: E.tpl, to: edTo(), at: nowStr(), st: 'draft', open: 0, reply: 0, owner: mailOwner(), subject: E.subject, body: E.body, ad: E.ad };
+    S.mails = (S.mails || []).filter(function (x) { return x.id !== E.id; }); S.mails.unshift(m); save();
+  }
+  function openDraft(m) {
+    mailEd = { id: m.id, step: 1, kind: m.kind, to: {}, tpl: m.tpl, title: m.title, subject: m.subject || MT[m.tpl].subject, body: m.body || MT[m.tpl].body, ad: m.ad !== false && m.kind === 'prospect', saved: nowStr().slice(6), pv: 0, q: '', excl: true };
+    m.to.forEach(function (id) { mailEd.to[id] = true; });
+  }
+  function sendMail() {
+    var E = mailEd, to = edTo();
+    S.mails = (S.mails || []).filter(function (x) { return x.id !== E.id; });
+    S.mails.unshift({ id: E.id, title: E.title || '제목 없는 메일', kind: E.kind, tpl: E.tpl, to: to, at: nowStr(), st: 'sent', open: 0, reply: 0, owner: mailOwner(), subject: E.subject, body: E.body, ad: E.ad });
+    to.forEach(function (id) { var c = contactOf(id); if (cst(c) === 'new') S.cst[id] = 'sent'; });
+    logPush('콜드메일 발송 · ' + (E.title || '') + ' · ' + to.length + '곳');
+    mailEd = null; mailTab = 'sent'; FL.mr = {}; save();
+    return to.length;
+  }
+  function mailDetail(id) {
+    var m = mailsAll().filter(function (x) { return x.id === id; })[0]; if (!m) return;
+    var rs = m.to.map(function (cid, i) { var c = contactOf(cid); return { c: c, s: m.st !== 'sent' ? 'draft' : i < m.reply ? 'replied' : i < m.open ? 'opened' : 'sent' }; });
+    var lbl = { replied: ['ok', '회신'], opened: ['acc', '열람'], sent: ['info', '발송'], draft: ['warn', '작성 중'] };
+    var c0 = contactOf(m.to[0]), subj = (m.kind === 'prospect' && m.ad !== false ? '(광고) ' : '') + merge(m.subject || MT[m.tpl].subject, c0);
+    $('#drawer').innerHTML = '<div class="drawer-h"><div><div class="row"><span class="pill ' + (m.kind === 'partner' ? 'info' : 'acc') + '">' + (m.kind === 'partner' ? '협력업체' : '개별섭외') + '</span><span class="pill ' + lbl[m.st === 'sent' ? 'replied' : m.st][0] + '">' + (m.st === 'sent' ? '발송 완료' : '작성 중') + '</span></div><h2 style="font-size:17px;margin-top:8px">' + esc(m.title) + '</h2><div class="muted" style="font-size:12.5px">' + m.at + ' · ' + m.to.length + '곳</div></div><button class="icon-btn" data-act="close" aria-label="닫기">' + ic('x') + '</button></div>'
+      + '<div class="drawer-b">' + (m.st === 'sent' ? kstrip([{ l: '받은 곳', v: m.to.length, u: '곳' }, { l: '열람', v: m.open, u: '곳', c: 'acc' }, { l: '회신', v: m.reply, u: '곳', c: 'ok' }]) : '')
+      + '<div><div class="t-desc" style="margin-bottom:6px">받는 곳별 상태</div><div class="rcp">' + rs.map(function (r) { return '<div><span style="min-width:0"><b>' + esc(r.c.co) + '</b> <span class="muted">' + esc(r.c.who) + '</span></span><span class="pill ' + lbl[r.s][0] + '">' + lbl[r.s][1] + '</span></div>'; }).join('') + '</div></div>'
+      + '<div><div class="t-desc" style="margin-bottom:6px">보낸 내용 · ' + esc(c0.co) + ' 기준</div><div class="quote"><b>' + esc(subj) + '</b><br><br>' + esc(merge(m.body || MT[m.tpl].body, c0)).replace(/\n/g, '<br>') + '</div><div class="row" style="margin-top:8px">' + MT[m.tpl].cites.map(function (s, i) { return cite(s, String(i + 1)); }).join('') + '</div></div>'
+      + (m.reply ? '<div class="verdict"><span class="ck ok">↩</span><div><b>' + esc(contactOf(m.to[0]).co) + ' 회신</b><div class="t-desc">"' + (m.kind === 'prospect' ? '부스 3곳 정도 검토 중입니다. 안내서와 Hall C 잔여 위치를 보내 주세요.' : '설치기간 2일 모두 인원 배치 가능합니다. 견적서 첨부드립니다.') + '" (데모)</div></div></div>' : '')
+      + (m.st === 'draft' ? '<div class="row"><button class="btn primary" data-medit="' + m.id + '">이어서 쓰기</button></div>' : '') + '</div>';
+    $('#drawer').hidden = false; $('#scrim').hidden = false;
+  }
+  function confirmModal(title, desc, okAttr, okLabel, danger) {
+    openModal('<div class="modal-h"><div><h2 style="font-size:17px">' + esc(title) + '</h2></div><button class="icon-btn" data-act="mclose" aria-label="닫기">' + ic('x') + '</button></div><div class="modal-b"><p style="margin:0;color:var(--text-2)">' + desc + '</p></div><div class="modal-f"><button class="btn" data-act="mclose">취소</button><button class="btn primary" ' + okAttr + (danger ? ' style="background:var(--bad);border-color:var(--bad)"' : '') + '>' + okLabel + '</button></div>');
+  }
+
+  function mailAct(x) {
+    if (x === 'new') { newMail(); render(); return; }
+    if (!mailEd) return;
+    if (x === 'exit') { if (edTo().length) { edSaveDraft(); toast('작성 중으로 저장했어요. 목록에서 이어서 쓸 수 있어요.'); } mailEd = null; FL.mr = {}; render(); return; }
+    if (x === 'prev') { mailEd.step--; render(); return; }
+    if (x === 'next') { if (!edValid()) return; mailEd.step++; mailEd.pv = 0; edSaved(); render(); return; }
+    if (x === 'clear') { mailEd.to = {}; soft(); return; }
+    if (x === 'send') { var n = edTo().length; confirmModal(n + '곳에 메일을 보낼까요?', '받는 곳마다 {회사명}·{담당자}가 채워진 메일이 한 통씩 나가요. 보낸 메일은 되돌릴 수 없어요.<br><span class="muted" style="font-size:12.5px">데모라 실제로는 나가지 않아요.</span>', 'data-mx="sendgo"', n + '곳에 보내기'); return; }
+    if (x === 'sendgo') { closeDrawer(); var k = sendMail(); render(); toast(k + '곳에 보냈어요. 데모라 실제 발송은 없어요.'); }
+  }
+  function refocus(id) { var el = $('#' + id); if (el) { el.focus(); var v = el.value; try { el.setSelectionRange(v.length, v.length); } catch (e) {} } }
+  var qT;
 
   /* ---------- 이벤트 ---------- */
   document.addEventListener('click', function (ev) {
-    var t = ev.target.closest('button,a,[data-src],sup.n,[data-booth],[data-poi]'); if (!t) return;
+    var t = ev.target.closest('button,a,[data-src],sup.n,[data-booth],[data-poi],[data-mopen]'); if (!t) return;
     var ds = t.dataset;
+    if (t.closest('#pop .menu')) setTimeout(closePop, 0);
+    if (ds.help) { ev.preventDefault(); openPop(t, helpPop(ds.help), 'help-pop'); return; }
+    if (ds.fchip) { openPop(t, fchipPop(ds.fchip), 'fpop'); return; }
+    if (ds.fclear) { var fp = ds.fclear.split('|'); (FL[fp[0]] = FL[fp[0]] || {})[fp[1]] = {}; soft(); return; }
+    if (ds.freset) { FL[ds.freset] = {}; if (ds.freset === 'ex') exQ = ''; if (ds.freset === 'mr' && mailEd) mailEd.q = ''; soft(); return; }
+    if (ds.rowmenu) { var rm = ds.rowmenu.split('|'); openPop(t, rowMenuPop(rm[0], rm.slice(1).join('|')), 'menu-pop'); return; }
+    if (ds.ntab) { notiTab = ds.ntab; refreshPop(notiHtml()); return; }
+    if (ds.noti) { S.notiRead[ds.noti] = true; save(); closePop(); paintBell(); if (ds.ngo) go(ds.ngo); return; }
+    if (ds.nudgego) { nudgeGo(); return; }
+    if (ds.rvtab) { revTab = ds.rvtab; render(); return; }
+    if (ds.ibtab) { inboxTab = ds.ibtab; inqSel = null; render(); return; }
+    if (ds.mtab) { mailTab = ds.mtab; render(); return; }
+    if (ds.mx) { mailAct(ds.mx); return; }
+    if (ds.mkind) { if (mailEd && mailEd.kind !== ds.mkind) { mailEd.kind = ds.mkind; mailEd.to = {}; mailEd.tpl = ds.mkind === 'prospect' ? 'recruit' : 'quote'; mailEd.ad = ds.mkind === 'prospect'; mailEd.title = ''; applyTpl(); FL.mr = {}; soft(); } return; }
+    if (ds.mtag) { var ta = $('#ed-body'), a0 = ta.selectionStart || ta.value.length; ta.value = ta.value.slice(0, a0) + ds.mtag + ta.value.slice(ta.selectionEnd || a0); mailEd.body = ta.value; ta.focus(); ta.setSelectionRange(a0 + ds.mtag.length, a0 + ds.mtag.length); paintPv(); edSaved(); return; }
+    if (ds.mpv) { var nn = edTo().length; mailEd.pv = (mailEd.pv + +ds.mpv + nn) % nn; paintPv(); return; }
+    if (ds.mopen) { var mo = mailsAll().filter(function (x) { return x.id === ds.mopen; })[0]; if (mo && mo.st === 'draft') { openDraft(mo); render(); } else mailDetail(ds.mopen); return; }
+    if (ds.medit) { var me2 = mailsAll().filter(function (x) { return x.id === ds.medit; })[0]; closeDrawer(); openDraft(me2); render(); return; }
+    if (ds.mdel) { confirmModal('메일을 삭제할까요?', '목록에서 사라져요. 이미 보낸 메일은 받는 곳에 그대로 남아 있어요.', 'data-mdelgo="' + ds.mdel + '"', '삭제', true); return; }
+    if (ds.mdelgo) { S.mailDel[ds.mdelgo] = true; save(); closeDrawer(); soft(); toast('삭제했어요.'); return; }
+    if (ds.exmap) { var ee = D.exhibitorsList.filter(function (x) { return x.co === ds.exmap; })[0], bid = ee.booth.split('~')[0]; MS.sel = bid; MS.dest = 'booth:' + bid; go('org-map'); return; }
     if (ds.src) { ev.preventDefault(); openSrc(JSON.parse(ds.src)); return; }
     if (ds.ci) { var p = ds.ci.split(':'), ch = activeChat(); if (ch && ch.msgs[p[0]] && ch.msgs[p[0]].res.cites[p[1]]) openSrc(ch.msgs[p[0]].res.cites[p[1]]); return; }
     if (ds.mode) { S.mode = ds.mode; hallSel = null; save(); location.hash = ds.mode === 'pre' ? 'apply' : 'home'; render(); return; }
@@ -1012,7 +1425,13 @@
     if (!a) return;
     if (a === 'close') closeDrawer();
     else if (a === 'mini') { miniOpen = !miniOpen; renderFab(route()); }
-    else if (a === 'nudge-x') { S.nudge = false; save(); renderFab(route()); }
+    else if (a === 'nudge-x') { S.nudgeOff[route()] = true; save(); renderFab(route()); }
+    else if (a === 'noti') openPop(t, notiHtml(), 'noti-pop');
+    else if (a === 'notiall') { notis().forEach(function (n) { S.notiRead[n.id] = true; }); save(); refreshPop(notiHtml()); paintBell(); }
+    else if (a === 'notiset') toast('데모: 알림 설정은 연결 전이에요.');
+    else if (a === 'popclose') closePop();
+    else if (a === 'selnone') { opSel = {}; soft(); }
+    else if (a === 'exnudge') { var cs2 = Object.keys(exSel).filter(function (k) { return exSel[k]; }); logPush('선택 독려 · ' + cs2.join(', ')); exSel = {}; save(); soft(); toast(cs2.length + '곳에 서류 제출 독려 알림을 보냈어요. (데모)'); }
     else if (a === 'newchat') { S.active = null; save(); paintThreads(); }
     else if (a === 'menu') { $('#side').classList.toggle('open'); }
     else if (a === 'theme') { S.theme = S.theme === 'dark' ? 'light' : 'dark'; save(); applyTheme(); if (mapRedraw) mapRedraw(); }
@@ -1032,12 +1451,22 @@
     if (ev.target.closest('#apply-submit') && !ev.target.closest('#apply-submit').disabled) toast('데모: 신청서를 제출한 것으로 표시했어요. 실제 제출은 주최사 시스템에서 해요.');
     if (ev.target.closest('#drawing')) $('#drawing').classList.toggle('zoom');
     if (ev.target.id === 'scrim') closeDrawer();
+    var pp = $('#pop'); if (pp && !pp.hidden) { if (popJust) popJust = false; else if (document.contains(ev.target) && !ev.target.closest('#pop')) closePop(); }
   });
   document.addEventListener('change', function (ev) {
     var t = ev.target;
     if (t.dataset.task) { S.done[t.dataset.task] = t.checked; save(); render(); }
     if (t.dataset.pre) { S.pre[t.dataset.pre] = t.checked; save(); render(); }
     if (t.dataset.rqsel) { opSel[t.dataset.rqsel] = t.checked; soft(); }
+    if (t.dataset.selall) { document.querySelectorAll('[data-rqsel]').forEach(function (c) { opSel[c.dataset.rqsel] = t.checked; }); soft(); }
+    if (t.dataset.fopt) { var fa = t.dataset.fopt.split('|'), fk = fa[0] + '|' + fa[1]; FL[fa[0]] = FL[fa[0]] || {}; FL[fa[0]][fa[1]] = FL[fa[0]][fa[1]] || {}; FL[fa[0]][fa[1]][fa.slice(2).join('|')] = t.checked; soft(); var na = $('[data-fchip="' + fk + '"]'); if (na) { openPop(na, fchipPop(fk), 'fpop'); popJust = false; } }
+    if (t.dataset.exsel) { exSel[t.dataset.exsel] = t.checked; soft(); }
+    if (t.dataset.exall) { document.querySelectorAll('[data-exsel]').forEach(function (c) { exSel[c.dataset.exsel] = t.checked; }); soft(); }
+    if (t.dataset.mto) { mailEd.to[t.dataset.mto] = t.checked; soft(); }
+    if (t.dataset.mall) { document.querySelectorAll('[data-mto]:not(:disabled)').forEach(function (c) { mailEd.to[c.dataset.mto] = t.checked; }); soft(); }
+    if (t.dataset.mexcl) { mailEd.excl = t.checked; if (t.checked) edTo().forEach(function (id) { if (cst(contactOf(id)) === 'replied') delete mailEd.to[id]; }); soft(); }
+    if (t.dataset.mtpl) { mailEd.tpl = t.value; mailEd.title = ''; applyTpl(); edSaved(); soft(); }
+    if (t.dataset.mad) { mailEd.ad = t.checked; paintPv(); edSaved(); }
     if (t.dataset.issteam) { var iid = t.dataset.issteam; S.iss[iid] = { st: t.value ? 'assigned' : 'new', team: t.value }; if (t.value) logPush('이슈 배정 · ' + D.issues.filter(function (i) { return i.id === iid; })[0].title + ' → ' + t.value); save(); soft(); }
   });
   document.addEventListener('submit', function (ev) {
@@ -1051,11 +1480,15 @@
     }
   });
   document.addEventListener('keydown', function (ev) {
-    if (ev.key === 'Escape') closeDrawer();
+    if (ev.key === 'Escape') { if ($('#pop') && !$('#pop').hidden) closePop(); else closeDrawer(); }
     if (ev.key === 'Enter' && !ev.shiftKey && ev.target.tagName === 'TEXTAREA') { ev.preventDefault(); var b = ev.target.closest('.composer').querySelector('[data-send]'); if (b) b.click(); }
   });
   document.addEventListener('input', function (ev) {
-    if (ev.target.id === 'side-search') { /* 간단 검색: 엔터 시 어시스턴트로 */ }
+    var id = ev.target.id;
+    if (id === 'ex-q' || id === 'mr-q') { var v = ev.target.value; clearTimeout(qT); qT = setTimeout(function () { if (id === 'ex-q') exQ = v.trim(); else if (mailEd) mailEd.q = v.trim(); soft(); refocus(id); }, 250); }
+    if (id === 'ed-title' && mailEd) { mailEd.title = ev.target.value; edSaved(); }
+    if (id === 'ed-subj' && mailEd) { mailEd.subject = ev.target.value; paintPv(); edSaved(); }
+    if (id === 'ed-body' && mailEd) { mailEd.body = ev.target.value; paintPv(); edSaved(); }
   });
   document.addEventListener('keydown', function (ev) {
     if (ev.target.id === 'side-search' && ev.key === 'Enter' && ev.target.value.trim()) { var v = ev.target.value; ev.target.value = ''; S.active = null; go('assistant'); setTimeout(function () { ask(v, { fresh: true }); }, 30); }
@@ -1063,8 +1496,13 @@
 
   var VIEWS = { home: function () { return VIEWS_home(); }, apply: viewApply, schedule: viewSchedule, submissions: viewSubmissions, check: viewCheck, assistant: viewAssistant, library: viewLibrary, halls: viewHalls, company: viewCompany, booth: viewBooth,
     'org-home': viewOrgHome, 'org-exhibitors': viewOrgExhibitors, 'org-review': viewOrgReview, 'org-inbox': viewOrgInbox, 'org-map': viewOrgMap, 'org-relay': viewOrgRelay,
-    'op-home': viewOpHome, 'op-approvals': viewOpApprovals, 'op-schedule': viewOpSchedule, 'op-map': viewOpMap, 'op-issues': viewOpIssues, 'op-log': viewOpLog };
+    'op-home': viewOpHome, 'op-approvals': viewOpApprovals, 'op-schedule': viewOpSchedule, 'op-map': viewOpMap, 'op-issues': viewOpIssues, 'op-log': viewOpLog, 'org-mail': viewMail, 'op-mail': viewMail };
   var AFTER = { assistant: paintThreads, halls: mapAfter, 'org-map': mapAfter, 'op-map': mapAfter };
   window.addEventListener('hashchange', render);
+  window.addEventListener('scroll', function () {
+    var n = $('#nudge'); if (n) { var L = NUDGES[n.dataset.r], i = window.scrollY > 280 && L[1] ? 1 : 0; if (+n.dataset.i !== i) { n.dataset.i = i; var tx = n.querySelector('.nudge-t'); tx.textContent = L[i][0]; tx.classList.remove('swap'); void tx.offsetWidth; tx.classList.add('swap'); } }
+    placePop();
+  }, { passive: true });
+  window.addEventListener('resize', placePop);
   render();
 })();

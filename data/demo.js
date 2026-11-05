@@ -249,3 +249,53 @@ window.DEMO.issues = [
   { id: 'i3', hall: 'Hall C', ex: '뷰티 소싱 페어(데모)', title: 'C-3xx 구역 분전반 차단', at: '11.05 09:20', lvl: 'high', st: 'assigned', team: '전기 협력업체' },
   { id: 'i4', hall: 'THE PLATZ', ex: '스타트업 데모데이(데모)', title: '무선 인터넷 접속 불량', at: '11.04 16:10', lvl: 'low', st: 'done', team: 'SK브로드밴드' }
 ];
+/* ===== v3: 콜드메일 (모두 가상 회사·주소) ===== */
+window.DEMO.mailContacts = {
+  prospect: [
+    { id: 'p1', co: '한결로봇', cat: '로봇·자동화', who: '정우진 팀장', email: 'wj.jung@hangyeol-demo.kr', past: '2025 참가', st: 'replied' },
+    { id: 'p2', co: '모아비전', cat: '센서·비전', who: '이하늘 매니저', email: 'sky.lee@moavision-demo.kr', past: '미참가', st: 'opened' },
+    { id: 'p3', co: '스텝AGV', cat: '물류·AGV', who: '권도현 이사', email: 'dh.kwon@stepagv-demo.kr', past: '2025 참가', st: 'sent' },
+    { id: 'p4', co: '큐브팩토리', cat: '스마트팩토리 SW', who: '남지수 매니저', email: 'js.nam@cubefactory-demo.kr', past: '미참가', st: 'new' },
+    { id: 'p5', co: '에이치모션', cat: '로봇·자동화', who: '홍은채 과장', email: 'ec.hong@hmotion-demo.kr', past: '미참가', st: 'new' },
+    { id: 'p6', co: '정밀링크', cat: '부품·소재', who: '배준호 부장', email: 'jh.bae@jlink-demo.kr', past: '2024 참가', st: 'opened' },
+    { id: 'p7', co: '라이트센스', cat: '센서·비전', who: '송다인 매니저', email: 'di.song@lightsense-demo.kr', past: '미참가', st: 'new' },
+    { id: 'p8', co: '온디맨드랩', cat: '스마트팩토리 SW', who: '윤서준 대표', email: 'sj.yoon@ondemandlab-demo.kr', past: '미참가', st: 'new' },
+    { id: 'p9', co: '그리드AMR', cat: '물류·AGV', who: '최예준 팀장', email: 'yj.choi@gridamr-demo.kr', past: '2025 참가', st: 'replied' },
+    { id: 'p10', co: '삼원공압', cat: '부품·소재', who: '김민재 차장', email: 'mj.kim@samwon-demo.kr', past: '2024 참가', st: 'sent' },
+    { id: 'p11', co: '뉴로그립', cat: '로봇·자동화', who: '장하윤 매니저', email: 'hy.jang@neurogrip-demo.kr', past: '미참가', st: 'new' },
+    { id: 'p12', co: '데이터밀', cat: '스마트팩토리 SW', who: '오지안 팀장', email: 'ja.oh@datamill-demo.kr', past: '미참가', st: 'optout' },
+    { id: 'p13', co: '비전포인트', cat: '센서·비전', who: '임채원 과장', email: 'cw.lim@visionpoint-demo.kr', past: '2025 참가', st: 'new' },
+    { id: 'p14', co: '로지스타', cat: '물류·AGV', who: '한서윤 매니저', email: 'sy.han@logista-demo.kr', past: '미참가', st: 'new' },
+    { id: 'p15', co: '대한베어링', cat: '부품·소재', who: '서도윤 부장', email: 'dy.seo@dhbearing-demo.kr', past: '2024 참가', st: 'new' },
+    { id: 'p16', co: '코봇웍스', cat: '로봇·자동화', who: '유지호 팀장', email: 'jh.yu@cobotworks-demo.kr', past: '미참가', st: 'opened' },
+    { id: 'p17', co: '트윈스케일', cat: '스마트팩토리 SW', who: '문시우 매니저', email: 'sw.moon@twinscale-demo.kr', past: '미참가', st: 'new' },
+    { id: 'p18', co: '하이퍼센서', cat: '센서·비전', who: '신유나 과장', email: 'yn.shin@hypersensor-demo.kr', past: '미참가', st: 'new' },
+    { id: 'p19', co: '무빙랙', cat: '물류·AGV', who: '고태윤 대표', email: 'ty.ko@movingrack-demo.kr', past: '미참가', st: 'optout' },
+    { id: 'p20', co: '케이씰', cat: '부품·소재', who: '양수아 매니저', email: 'sa.yang@kseal-demo.kr', past: '미참가', st: 'new' },
+    { id: 'p21', co: '스마트그리퍼', cat: '로봇·자동화', who: '노건우 과장', email: 'gw.noh@smartgripper-demo.kr', past: '2025 참가', st: 'new' },
+    { id: 'p22', co: '팩토리OS', cat: '스마트팩토리 SW', who: '백나은 팀장', email: 'ne.baek@factoryos-demo.kr', past: '미참가', st: 'new' }
+  ],
+  partner: [
+    { id: 'v1', co: '한빛전력설비(데모)', cat: '전기', who: '김태성 소장', email: 'power@hbpower-demo.kr', past: '코엑스 등록', st: 'replied' },
+    { id: 'v2', co: '맑은물설비(데모)', cat: '급배수', who: '이준영 실장', email: 'water@clearwater-demo.kr', past: '코엑스 등록', st: 'sent' },
+    { id: 'v3', co: '넷플로우통신(데모)', cat: '통신', who: '박세린 매니저', email: 'net@netflow-demo.kr', past: '코엑스 등록', st: 'new' },
+    { id: 'v4', co: '스페이스디자인웍스(데모)', cat: '장치·부스시공', who: '최현우 대표', email: 'booth@spacedw-demo.kr', past: '코엑스 등록', st: 'replied' },
+    { id: 'v5', co: '모듈부스(데모)', cat: '장치·부스시공', who: '정다은 팀장', email: 'hello@modulebooth-demo.kr', past: '미등록', st: 'new' },
+    { id: 'v6', co: '빠른운송(데모)', cat: '운송·지게차', who: '장민혁 과장', email: 'cargo@fastmove-demo.kr', past: '코엑스 등록', st: 'opened' },
+    { id: 'v7', co: '이벤트렌탈(데모)', cat: '렌탈', who: '윤소희 매니저', email: 'rent@eventrental-demo.kr', past: '미등록', st: 'new' },
+    { id: 'v8', co: '글로벌통역(데모)', cat: '인력·통역', who: '강지우 실장', email: 'staff@globalinterp-demo.kr', past: '미등록', st: 'new' },
+    { id: 'v9', co: '세이프가드(데모)', cat: '보안·안전', who: '조성훈 팀장', email: 'safe@safeguard-demo.kr', past: '코엑스 등록', st: 'new' },
+    { id: 'v10', co: '클린앤케어(데모)', cat: '청소', who: '임하린 매니저', email: 'clean@cleancare-demo.kr', past: '미등록', st: 'new' }
+  ]
+};
+window.DEMO.mailTemplates = {
+  recruit: { n: '참가 모집 (개별섭외)', kind: 'prospect', subject: '2026 서울 스마트제조 엑스포 참가 제안 · {회사명}', body: '{담당자}님, 안녕하세요. 2026 서울 스마트제조 엑스포 사무국 정민아입니다.\n\n{분야} 분야에서 {회사명}을 눈여겨보고 있어 참가를 제안드립니다. 전시는 12.09~11 코엑스 Hall C(10,348㎡, 520부스)에서 열리고, 중앙 무주구간 천장고는 12.3m라 대형 장비 시연도 가능합니다.\n\n잔여 부스는 Hall C 공실 기준으로 안내드리며, 원하시면 부스 위치를 맵으로 보여드리겠습니다. 회신 주시면 상세 안내서를 보내드리겠습니다.\n\n정민아 드림 · ㈜스마트제조산업전람(데모)', cites: [{ chunk: 'coex-hall-c#02-spec-detail' }, { chunk: 'coex-dwg-hall-c-ceiling-2024#01-rigging' }] },
+  quote: { n: '견적 요청 (협력업체)', kind: 'partner', subject: '[견적 요청] 스마트제조 엑스포 설치기간 {분야} 작업 · 12.07~08', body: '{담당자}님, 안녕하세요. 2026 서울 스마트제조 엑스포 사무국입니다.\n\n설치기간(12.07~08) Hall C {분야} 작업 견적을 요청드립니다. 참가사 12곳, 부스 약 60개 규모이며 기술지원 신청은 11.16에 취합됩니다.\n\n가능 인원·단가·작업 가능 시간대를 11.12까지 회신 부탁드립니다. 급배수는 코엑스 등록 서비스협력업체만 시공할 수 있어 등록 여부도 함께 알려 주세요.\n\n㈜스마트제조산업전람(데모) 드림', cites: [{ label: '급배수 주의사항 서약 1항' }, { chunk: 'coex-dwg-hall-c-floor-2024#03-loading' }] },
+  schedule: { n: '설치 일정 안내 (협력업체)', kind: 'partner', subject: '[안내] Hall C 설치일 반입 시간대 · {회사명}', body: '{담당자}님, 설치일 반입 시간대를 안내드립니다.\n\nHall C 북측 화물출입구 4개소는 모두 W 5.4m × H 5.0m입니다. 차량 높이를 확인해 배정된 출입구로 들어와 주세요. 준비기간에는 1톤 이상 화물차가 1일 1회 3시간 무료주차됩니다.\n\n㈜스마트제조산업전람(데모) 드림', cites: [{ chunk: 'coex-dwg-hall-c-floor-2024#03-loading' }, { chunk: 'coex-parking-information#03-truck-free-parking' }] }
+};
+window.DEMO.mailSeed = [
+  { id: 'm1', title: '2차 참가 모집 · 미참가 섭외 대상', kind: 'prospect', tpl: 'recruit', to: ['p1', 'p2', 'p3', 'p6', 'p9', 'p10', 'p16'], at: '11.02 10:00', st: 'sent', open: 5, reply: 2, owner: 'organizer' },
+  { id: 'm2', title: '설치기간 전기·급배수 견적 요청', kind: 'partner', tpl: 'quote', to: ['v1', 'v2', 'v4', 'v6'], at: '11.03 14:20', st: 'sent', open: 4, reply: 2, owner: 'organizer' },
+  { id: 'm3', title: '3차 참가 모집 (작성 중)', kind: 'prospect', tpl: 'recruit', to: ['p4', 'p5', 'p7'], at: '11.05 09:10', st: 'draft', open: 0, reply: 0, owner: 'organizer' },
+  { id: 'm4', title: 'Hall B 급배수 긴급 점검 협조 요청', kind: 'partner', tpl: 'schedule', to: ['v2', 'v9'], at: '11.05 10:50', st: 'sent', open: 2, reply: 1, owner: 'operator' }
+];
