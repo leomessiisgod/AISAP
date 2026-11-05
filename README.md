@@ -1,2 +1,9 @@
 # AISAP
 AI for the AX
+
+## EXPO DESK 서비스 데모
+전시 참가기업·주최사·전시장 운영사의 준비 업무를 돕는 AX Assistant UI 데모입니다.
+
+- 바로 보기: https://leomessiisgod.github.io/AISAP/ (GitHub Pages, `docs/` 폴더)
+- 서버 없이 `docs/index.html`을 더블클릭해도 열립니다.
+- 회사·전시회·계정은 모두 가상이며, COEX 시설·도면 값만 AISAP 정제 데이터셋을 사용합니다. 자세한 내용은 [docs/README.md](docs/README.md).

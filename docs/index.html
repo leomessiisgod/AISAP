@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>EXPO DESK</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="banner" role="note"><span><b>EXPO DESK 서비스 데모</b> · 회사·전시회·주최사는 가상, COEX 시설·도면 값은 AISAP 정제 데이터셋 · 화면 기준일 2026.11.05</span><button type="button" data-act="theme">밝게/어둡게</button></div>
+<div class="app">
+  <aside class="side" id="side" aria-label="사이드바"></aside>
+  <div class="main" id="main">
+    <header class="topbar">
+      <button class="icon-btn menu-btn" data-act="menu" aria-label="메뉴 열기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+      <div class="crumb" id="crumb"></div>
+      <div class="grow"></div>
+      <button class="icon-btn" data-act="noti" aria-label="알림"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16.5V11a6 6 0 1 1 12 0v5.5l1.5 1.5h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg><span class="dot"></span></button>
+    </header>
+    <main class="content" id="content"></main>
+  </div>
+</div>
+<div class="fab" id="fab"></div>
+<div class="mini" id="mini" hidden></div>
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" hidden aria-label="근거 문서"></aside>
+<div class="toast" id="toast" role="status" hidden></div>
+<script src="data/knowledge.js"></script>
+<script src="data/demo.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
