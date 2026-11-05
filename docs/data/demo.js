@@ -171,3 +171,81 @@ window.DEMO = {
     ]
   }
 };
+
+/* ===== v2: 주최사·운영사 데모 데이터 (모두 가상) ===== */
+window.DEMO.roles = {
+  exhibitor: { label: '참가사', who: '참가기업', id: 'seoyun.kim@hanbit-demo.kr', name: '김서윤', org: '㈜한빛로보틱스', desc: '서류·일정·규정 확인, 부스 App' },
+  organizer: { label: '주최사', who: '전시 주최', id: 'host@smf-expo-demo.kr', name: '정민아', org: '㈜스마트제조산업전람', scen: '소싱인마켓 시나리오', desc: '참가사 관리·문의 응대·1차 검토' },
+  operator: { label: '운영사', who: '전시장 운영', id: 'hall-ops@venue-demo.kr', name: '오태준', org: '전시장 운영본부', scen: '코엑스 시나리오', desc: '전체 승인·반려·전시장 총괄' }
+};
+/* 참가사 목록 (주최사 화면). 한빛로보틱스 진행률은 화면에서 실제 상태로 계산 */
+window.DEMO.exhibitorsList = [
+  { co: '㈜한빛로보틱스', booth: 'C-228~231', size: 36, mgr: '김서윤', docs: null, inq: 1, live: true },
+  { co: '대성정밀', booth: 'C-112~113', size: 18, mgr: '오세준', docs: [7, 7], inq: 0 },
+  { co: '미래오토텍', booth: 'C-305~308', size: 36, mgr: '한지민', docs: [5, 7], inq: 2, rej: 1 },
+  { co: '그린팩토리', booth: 'C-141', size: 9, mgr: '서강호', docs: [2, 6], inq: 0, late: true },
+  { co: '세온비전', booth: 'C-210~211', size: 18, mgr: '이수빈', docs: [6, 7], inq: 1 },
+  { co: '누리센서', booth: 'C-402', size: 9, mgr: '박도윤', docs: [3, 6], inq: 0 },
+  { co: '케이드라이브', booth: 'C-520~523', size: 36, mgr: '최하람', docs: [4, 8], inq: 3, rej: 1 },
+  { co: '알파모션', booth: 'C-118~119', size: 18, mgr: '윤지호', docs: [7, 7], inq: 0 },
+  { co: '도담테크', booth: 'C-356', size: 9, mgr: '강예린', docs: [1, 6], inq: 1, late: true },
+  { co: '오성기계', booth: 'C-601~604', size: 36, mgr: '임재현', docs: [6, 8], inq: 0 },
+  { co: '바로AI', booth: 'C-233', size: 9, mgr: '조은솔', docs: [5, 6], inq: 0 },
+  { co: '청람에너지', booth: 'C-450~451', size: 18, mgr: '배성민', docs: [4, 7], inq: 1 }
+];
+/* 전시 프로세스 단계별 완료 (주최사 대시보드) */
+window.DEMO.orgStages = [
+  { n: '참가 신청·승인', done: 12, total: 12, due: '10.21' },
+  { n: '디렉토리 정보 등록', done: 11, total: 12, due: '11.04' },
+  { n: '부스 디자인 도면', done: 6, total: 12, due: '11.06' },
+  { n: '기술지원 신청 (전기·급배수·통신)', done: 4, total: 12, due: '11.16' },
+  { n: '시공업체 작업신고', done: 2, total: 12, due: '11.23' },
+  { n: '출입증 사전 등록', done: 0, total: 12, due: '11.25' }
+];
+/* 문의 (주최사 문의 관리) — q는 AI 엔진으로 답변 초안 생성 */
+window.DEMO.inquiries = [
+  { id: 'q1', draft: 'Hall C 화물출입구는 북측 4개소이며 모두 W 5.4m × H 5.0m입니다. 5톤 윙바디는 적재 상태 차량 높이가 5.0m를 넘지 않으면 진입할 수 있습니다. 설치일 반입 시간대는 사무국이 출입구별로 배정해 따로 안내드리겠습니다.', co: '미래오토텍', who: '한지민', at: '11.05 09:12', q: '5톤 윙바디 차량이 Hall C 화물출입구로 들어갈 수 있나요?', ask: 'Hall C 화물출입구 크기는?', st: 'new' },
+  { id: 'q2', draft: 'Hall C 천장 포인트 호이스트는 1Point 적정 인양하중이 150kg입니다. 배너 1개가 150kg을 넘으면 무게를 줄이거나 Point를 나눠 설치해야 합니다. 천장 배너 설치 신청은 11.16까지 사무국으로 보내 주세요.', co: '케이드라이브', who: '최하람', at: '11.05 08:40', q: '천장에 로고 배너를 달고 싶은데 하중 제한이 있나요?', ask: 'Hall C 천장 배너 하중 얼마까지야?', st: 'new' },
+  { id: 'q3', draft: '급배수는 코엑스에 등록된 서비스협력업체만 시공할 수 있습니다. 기술지원 신청서에 급배수 사용을 표기해 11.16까지 사무국에 보내 주시고, 급배수 사용 서약서에 전시주최·참가업체·공사업체 3자 날인을 받아 함께 제출해 주세요.', co: '세온비전', who: '이수빈', at: '11.04 17:22', q: '부스에서 커피머신을 쓰려면 뭘 신청해야 하나요?', ask: '커피머신 급배수 신청', st: 'new' },
+  { id: 'q4', draft: '준비·철거 기간에는 1톤 이상 화물차가 코엑스 진입 후 1일 1회 3시간 무료주차됩니다. 전시 기간에는 무료주차가 없습니다.', co: '케이드라이브', who: '최하람', at: '11.04 15:05', q: '준비기간에 1톤 트럭 주차는 무료인가요?', ask: '준비기간 화물차 무료주차 조건은?', st: 'answered' },
+  { id: 'q5', draft: '출입증 추가 발급 기준은 이 전시회 매뉴얼에 없어 확인 후 다시 안내드리겠습니다.', co: '도담테크', who: '강예린', at: '11.04 11:30', q: '출입증을 8매 넘게 추가 발급받을 수 있나요?', ask: '출입증 추가 발급 가능해?', st: 'new' },
+  { id: 'q6', co: '청람에너지', who: '배성민', at: '11.03 16:48', q: '부스 바닥에 앵커를 박아 장비를 고정해도 되나요?', ask: '부스 바닥에 앵커 박아도 돼?', st: 'escalated' }
+];
+/* 결재 요청 (참가사 → 주최사 1차 검토 → 운영사 승인) */
+window.DEMO.requests = [
+  { id: 'sub-layout', from: 'ex', co: '㈜한빛로보틱스', booth: 'C-228', type: '부스 도면', title: '부스 디자인 도면 (Lay-out)', file: 'C228_layout_v2.pdf', at: '11.02', due: '2026-11-06', stage: 'rejected', by: 'org', reason: '통로 너비와 벽면 이격거리 표기가 빠져 있습니다. 독립부스는 색상으로 구분해 A3 3부로 다시 제출해 주세요.', src: { label: '이용안내서 p.26' } },
+  { id: 'sub-fire', from: 'ex', co: '㈜한빛로보틱스', booth: 'C-228', type: '방염', title: '방염필증', file: 'fire_cert.jpg', at: '11.03', due: '2026-12-07', stage: 'op', src: { label: '이용안내서 p.57' } },
+  { id: 'sub-dir', from: 'ex', co: '㈜한빛로보틱스', booth: 'C-228', type: '디렉토리', title: '참가업체 디렉토리 정보', file: 'hanbit_profile.docx', at: '11.01', due: '2026-11-04', stage: 'approved', src: { label: '이용안내서 p.44' } },
+  { id: 'r-mirae-layout', from: 'ex', co: '미래오토텍', booth: 'C-305', type: '부스 도면', title: '부스 디자인 도면 (독립부스)', file: 'mirae_C305_layout.pdf', at: '11.04', due: '2026-11-06', stage: 'org', src: { label: '이용안내서 p.26' } },
+  { id: 'r-seon-water', from: 'ex', co: '세온비전', booth: 'C-210', type: '급배수', title: '급배수 사용 신청 + 서약서', file: 'seon_water.pdf', at: '11.04', due: '2026-11-16', stage: 'org', src: { label: '급배수 주의사항 서약 1~2항' } },
+  { id: 'r-kdrive-rig', from: 'ex', co: '케이드라이브', booth: 'C-520', type: '천장 배너', title: '천장 배너 설치 (로고 배너 2개 · 각 180kg)', file: 'kdrive_banner.pdf', at: '11.05', due: '2026-11-16', stage: 'org', flag: '1Point 150kg 초과 의심', src: { chunk: 'coex-dwg-hall-c-ceiling-2024#01-rigging' } },
+  { id: 'r-alpha-gas', from: 'ex', co: '알파모션', booth: 'C-118', type: '위험물', title: '위험물 반입 허가 (LPG 시연)', file: 'alpha_hazard.pdf', at: '11.03', due: '2026-11-16', stage: 'op', src: { label: '이용안내서 p.57' } },
+  { id: 'o-power', from: 'org', co: '㈜스마트제조산업전람', booth: '전체', type: '기술지원 취합', title: '기술지원 신청 취합본 (전기 32건 · 급배수 6건)', file: 'SMF_기술지원_취합_1차.xlsx', at: '11.05', due: '2026-11-23', stage: 'op', src: { label: '이용안내서 p.26' } },
+  { id: 'o-loading', from: 'org', co: '㈜스마트제조산업전람', booth: '전체', type: '반입 계획', title: '설치일 반입 시간대 배정표 (화물출입구 4개소)', file: 'SMF_반입배정.xlsx', at: '11.04', due: '2026-11-23', stage: 'op', src: { chunk: 'coex-dwg-hall-c-floor-2024#03-loading' } },
+  { id: 'o-sign', from: 'org', co: '㈜스마트제조산업전람', booth: '로비', type: '광고시설물', title: '광고안내시설물 설치 신청 (로비 배너 6개)', file: 'SMF_signage.pdf', at: '11.03', due: '2026-11-16', stage: 'op', src: { label: '이용안내서 p.29' } }
+];
+window.DEMO.rejectDrafts = {
+  '부스 도면': '부스 도면에 통로 너비와 벽면 이격거리 표기가 없습니다. 이용안내서 p.26 기준에 맞춰 A3 3부로 다시 제출해 주세요.',
+  '천장 배너': 'Hall C 포인트 호이스트는 1Point 적정 인양하중이 150kg입니다. 배너 1개 180kg은 기준을 넘으니 무게를 줄이거나 Point를 나눠 다시 신청해 주세요.',
+  '위험물': '반입 물품이 코엑스 승인 물품인지 확인이 필요합니다. 물품 목록과 안전관리 계획을 첨부해 다시 신청해 주세요.',
+  '급배수': '급배수 사용 서약서에 공사업체 날인이 빠져 있습니다. 전시주최·참가업체·공사업체 3자 날인 후 다시 제출해 주세요.',
+  '기술지원 취합': '취합본 중 전력 용량이 비어 있는 행이 있습니다. 보완 후 다시 제출해 주세요.',
+  '반입 계획': '같은 시간대에 한 화물출입구로 배정된 차량이 많습니다. 출입구별로 분산해 다시 제출해 주세요.',
+  '광고시설물': '설치 위치 도면이 빠져 있습니다. 위치 도면과 시안 1부를 첨부해 다시 신청해 주세요.',
+  '방염': '방염필증의 자재명과 실제 사용 자재가 다릅니다. 확인 후 다시 제출해 주세요.',
+  '디렉토리': '로고 파일 해상도가 낮습니다. 다시 제출해 주세요.'
+};
+/* 전시장 일정 (운영사): 2026-11-01 ~ 12-31 */
+window.DEMO.venueSchedule = [
+  { hall: 'Hall A', items: [{ n: '2026 리빙디자인 페어(데모)', s: '2026-11-10', e: '2026-11-14', setup: 2 }, { n: '스마트시티 엑스포(데모)', s: '2026-12-02', e: '2026-12-05', setup: 2 }] },
+  { hall: 'Hall B', items: [{ n: '푸드테크 쇼(데모)', s: '2026-11-18', e: '2026-11-21', setup: 2 }, { n: '반려동물 박람회(데모)', s: '2026-12-16', e: '2026-12-20', setup: 1 }] },
+  { hall: 'Hall C', items: [{ n: '뷰티 소싱 페어(데모)', s: '2026-11-12', e: '2026-11-14', setup: 1 }, { n: '2026 서울 스마트제조 엑스포', s: '2026-12-09', e: '2026-12-11', setup: 2, ours: true }] },
+  { hall: 'Hall D', items: [{ n: '국제 의료기기 전시회(데모)', s: '2026-11-24', e: '2026-11-27', setup: 2 }] },
+  { hall: 'THE PLATZ', items: [{ n: '스타트업 데모데이(데모)', s: '2026-11-06', e: '2026-11-07', setup: 1 }, { n: '브랜드 팝업(데모)', s: '2026-12-12', e: '2026-12-24', setup: 1 }] }
+];
+window.DEMO.issues = [
+  { id: 'i1', hall: 'Hall B', ex: '푸드테크 쇼(데모)', title: 'B-214 부스 급배수 누수', at: '11.05 10:40', lvl: 'high', st: 'new', team: '' },
+  { id: 'i2', hall: 'Hall A', ex: '리빙디자인 페어(데모)', title: '화물출입구 2 반입 차량 대기 지연', at: '11.05 09:55', lvl: 'mid', st: 'assigned', team: '홀매니저실' },
+  { id: 'i3', hall: 'Hall C', ex: '뷰티 소싱 페어(데모)', title: 'C-3xx 구역 분전반 차단', at: '11.05 09:20', lvl: 'high', st: 'assigned', team: '전기 협력업체' },
+  { id: 'i4', hall: 'THE PLATZ', ex: '스타트업 데모데이(데모)', title: '무선 인터넷 접속 불량', at: '11.04 16:10', lvl: 'low', st: 'done', team: 'SK브로드밴드' }
+];

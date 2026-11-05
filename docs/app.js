@@ -4,14 +4,14 @@
   'use strict';
   var D = window.DEMO, CH = window.KB_CHUNKS || [], DOCS = window.KB_DOCS || [];
   var TODAY = new Date(D.today + 'T00:00:00');
-  var KEY = 'expo-desk-ax-demo-v1';
+  var KEY = 'expo-desk-ax-demo-v2';
 
   /* ---------- 저장 (브라우저 개인 저장, 실패해도 동작) ---------- */
   function fresh() {
     var done = {}; D.tasks.forEach(function (t) { if (t.done) done[t.id] = true; });
     var sub = {}; D.submissions.forEach(function (s) { sub[s.id] = s.status; });
     var cond = {}; D.conditions.forEach(function (c) { cond[c.id] = c.def; });
-    return { mode: 'approved', done: done, sub: sub, cond: cond, pre: { 'pre-biz': true, 'pre-profile': true, 'pre-privacy': true }, chats: [], active: null, nudge: true };
+    return { role: null, theme: 'light', mode: 'approved', done: done, sub: sub, cond: cond, pre: { 'pre-biz': true, 'pre-profile': true, 'pre-privacy': true }, chats: [], active: null, nudge: true, req: {}, extraReq: [], inq: {}, iss: {}, log: [], assign: {}, sent: [] };
   }
   var S = fresh();
   try { var raw = localStorage.getItem(KEY); if (raw) { var p = JSON.parse(raw); for (var k in p) S[k] = p[k]; } } catch (e) {}
@@ -102,66 +102,146 @@
     check: { t: 'AI 사전 점검', icon: 'check', group: '준비', tag: 'AI' },
     assistant: { t: 'AI 어시스턴트', icon: 'spark', group: '지식', tag: 'BETA' },
     library: { t: 'Library', icon: 'book', group: '지식' },
-    halls: { t: '홀·도면', icon: 'map', group: '지식', tag: 'NEW' },
+    halls: { t: '홀 맵·도면', icon: 'map', group: '지식', tag: 'NEW' },
     company: { t: '기업 정보·담당자', icon: 'building', group: '회사' },
     booth: { t: '부스 App', icon: 'phone', group: '현장' }
   };
+  var ORG_ROUTES = {
+    'org-home': { t: '주최 대시보드', icon: 'home', group: '전시 운영' },
+    'org-exhibitors': { t: '참가사 현황', icon: 'users', group: '전시 운영' },
+    'org-review': { t: '서류 1차 검토', icon: 'check', group: '전시 운영', badge: function () { return reqCount('org'); } },
+    'org-inbox': { t: '문의 관리', icon: 'chat', group: '전시 운영', badge: function () { return allInq().filter(function (q) { return inqSt(q) === 'new'; }).length; } },
+    'org-map': { t: '부스 배정 맵', icon: 'map', group: '전시 운영' },
+    'org-relay': { t: '운영사 제출 현황', icon: 'doc', group: '전시 운영' },
+    assistant: { t: 'AI 어시스턴트', icon: 'spark', group: '지식', tag: 'BETA' },
+    library: { t: 'Library', icon: 'book', group: '지식' }
+  };
+  var OP_ROUTES = {
+    'op-home': { t: '통합 관제', icon: 'home', group: '전시장 총괄' },
+    'op-approvals': { t: '통합 승인함', icon: 'check', group: '전시장 총괄', badge: function () { return reqCount('op'); } },
+    'op-schedule': { t: '전시장 일정', icon: 'cal', group: '전시장 총괄' },
+    'op-map': { t: '홀 맵', icon: 'map', group: '전시장 총괄' },
+    'op-issues': { t: '현장 이슈', icon: 'alert', group: '전시장 총괄', badge: function () { return D.issues.filter(function (i) { return issueSt(i) === 'new'; }).length; } },
+    'op-log': { t: '처리 이력', icon: 'doc', group: '전시장 총괄' },
+    assistant: { t: 'AI 어시스턴트', icon: 'spark', group: '지식', tag: 'BETA' },
+    library: { t: 'Library', icon: 'book', group: '지식' }
+  };
+  function routesFor() { return S.role === 'organizer' ? ORG_ROUTES : S.role === 'operator' ? OP_ROUTES : ROUTES; }
   var PRE_OPEN = { apply: 1, assistant: 1, library: 1, halls: 1, company: 1 };
   var hallSel = null, libFilter = 'all', subFilter = 'all', schedFilter = 'all', boothTab = 'today', checkSel = 'sub-layout', homeFlow = 0, asstScope = { ev: true, coex: true, hall: true };
 
   function route() {
-    var h = (location.hash || '').replace('#', '');
-    if (!ROUTES[h]) h = isPre() ? 'apply' : 'home';
+    var h = (location.hash || '').replace('#', ''), R = routesFor();
+    if (S.role === 'organizer') return R[h] ? h : 'org-home';
+    if (S.role === 'operator') return R[h] ? h : 'op-home';
+    if (!R[h]) h = isPre() ? 'apply' : 'home';
     if (isPre() && !PRE_OPEN[h]) h = 'apply';
     if (!isPre() && h === 'apply') h = 'home';
     return h;
   }
   function go(r) { if (location.hash === '#' + r) render(); else location.hash = r; }
 
+  /* ---------- 결재 체인 상태 (세 역할 공유) ---------- */
+  function reqAll() { return D.requests.concat(S.extraReq || []); }
+  function reqState(r) { return S.req[r.id] || { stage: r.stage, reason: r.reason, by: r.by }; }
+  function reqCount(stage) { return reqAll().filter(function (r) { return reqState(r).stage === stage; }).length; }
+  function inqSt(q) { return (S.inq[q.id] || {}).st || q.st; }
+  function issueSt(i) { return (S.iss[i.id] || {}).st || i.st; }
+  function syncSub() {
+    reqAll().forEach(function (r) {
+      if (r.from !== 'ex' || r.co !== '㈜한빛로보틱스') return;
+      var st = reqState(r).stage;
+      S.sub[r.id] = st === 'approved' ? 'approved' : st === 'rejected' ? 'rejected' : 'submitted';
+    });
+  }
+  function chainHtml(st) {
+    var s = st.stage, steps = [['ex', '참가사 제출'], ['org', '주최사 검토'], ['op', '운영사 승인']];
+    var idx = { org: 1, op: 2, approved: 3, rejected: -1 }[s];
+    return '<div class="chain">' + steps.map(function (x, i) {
+      var cls = s === 'rejected' && ((st.by === 'org' && i === 1) || (st.by === 'op' && i === 2)) ? 'bad' : i < idx || s === 'approved' ? 'ok' : i === idx ? 'on' : '';
+      return '<span class="' + cls + '">' + x[1] + '</span>' + (i < 2 ? '›' : '');
+    }).join('') + '</div>';
+  }
+  function logPush(text) { S.log.unshift({ at: nowStr(), who: (D.roles[S.role] || {}).label || '', text: text }); }
+  function nowStr() { var d = new Date(); return '11.05 ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+
+  /* ---------- 테마 (화이트 기본, 나이트 선택) ---------- */
+  function applyTheme() { document.documentElement.dataset.theme = S.theme === 'dark' ? 'dark' : 'light'; var b = $('#theme-btn'); if (b) { b.textContent = S.theme === 'dark' ? '🌙' : '☀️'; b.setAttribute('aria-label', S.theme === 'dark' ? '밝은 화면으로 바꾸기' : '나이트 모드로 바꾸기'); b.title = b.getAttribute('aria-label'); } }
+
+  /* ---------- 로그인 ---------- */
+  var loginRole = 'exhibitor';
+  function viewLogin() {
+    var R = D.roles, r = R[loginRole];
+    return '<div class="login"><section class="login-brand"><div><div class="row"><div class="logo">ED</div><b style="font-size:16px">EXPO DESK</b><span class="pill demo">데모</span></div>'
+      + '<h1 style="margin-top:28px">전시 준비를<br>판단 가능한 업무로.</h1><p>참가기업·주최사·전시장 운영사가 같은 근거 문서를 보고, 같은 결재 흐름 위에서 일합니다.</p></div>'
+      + '<div class="flowline"><div><span class="dotc role-pill ex">참</span><span><b>참가사</b>가 서류를 내면</span></div><div><span class="dotc role-pill org">주</span><span><b>주최사</b>가 1차로 검토해 넘기고</span></div><div><span class="dotc role-pill op">운</span><span><b>운영사</b>가 승인하거나 반려합니다. 결과는 세 화면에 바로 반영돼요.</span></div></div>'
+      + '<p class="muted" style="font-size:12px;margin:0">회사·전시회·주최사·계정은 모두 가상입니다. COEX 시설·도면 값만 AISAP 정제 데이터셋을 씁니다.</p></section>'
+      + '<form class="login-form" id="login-form"><div><h2 style="font-size:22px">로그인</h2><p class="muted" style="margin:4px 0 0;font-size:13px">역할을 고르면 데모 계정이 채워져요. 그대로 로그인하면 됩니다.</p></div>'
+      + '<div class="role-cards" role="radiogroup" aria-label="역할">' + ['exhibitor', 'organizer', 'operator'].map(function (k) { var x = R[k]; return '<button type="button" role="radio" aria-checked="' + (k === loginRole) + '" data-lrole="' + k + '" class="' + (k === loginRole ? 'on' : '') + '"><span class="role-pill ' + { exhibitor: 'ex', organizer: 'org', operator: 'op' }[k] + '">' + x.label + '</span><b>' + x.who + '</b><span>' + esc(x.scen ? x.scen + '(데모)' : '참가기업(데모)') + '</span><span>' + esc(x.desc) + '</span></button>'; }).join('') + '</div>'
+      + '<div class="field"><label for="login-id">아이디</label><input id="login-id" value="' + esc(r.id) + '" autocomplete="off"></div>'
+      + '<div class="field"><label for="login-pw">비밀번호</label><input id="login-pw" type="password" value="demo-only" autocomplete="off"></div>'
+      + (loginRole === 'exhibitor' ? '<div class="field"><label>데모 계정 상태</label><div class="seg"><button type="button" data-lmode="pre" class="' + (S.mode === 'pre' ? 'on' : '') + '">참가 신청 전 · 2027 스마트물류 위크</button><button type="button" data-lmode="approved" class="' + (S.mode !== 'pre' ? 'on' : '') + '">신청 승인 완료 · 2026 스마트제조</button></div></div>' : '')
+      + '<button class="btn primary lg" type="submit">' + r.label + '로 로그인</button><p class="muted" style="font-size:12px;margin:0;text-align:center">' + esc(r.org) + ' · ' + esc(r.name) + ' 님 · 화면 기준일 2026.11.05</p></form></div>';
+  }
+
   /* ---------- 셸 ---------- */
   function renderSide(cur) {
-    var e = ex(), groups = {};
-    Object.keys(ROUTES).forEach(function (k) {
+    var R = routesFor(), groups = {}, role = S.role, rr = D.roles[role];
+    Object.keys(R).forEach(function (k) {
       if (k === 'booth') return;
-      if (isPre() ? k === 'home' : k === 'apply') return;
-      var r = ROUTES[k]; (groups[r.group] = groups[r.group] || []).push(k);
+      if (role === 'exhibitor' && (isPre() ? k === 'home' : k === 'apply')) return;
+      var r = R[k]; (groups[r.group] = groups[r.group] || []).push(k);
     });
     var unread = D.submissions.filter(function (s) { var st = S.sub[s.id]; return st === 'rejected' || st === 'todo' || st === 'draft'; }).length;
-    var h = '<div class="ws"><div class="ws-top"><div class="logo">ED</div><div style="min-width:0"><div class="ws-name">' + esc(e.name) + '</div><div class="ws-sub">' + esc(e.hall) + ' · 부스 ' + esc(e.booth) + '</div></div></div>'
-      + '<div class="row"><span class="pill ' + (isPre() ? 'warn' : 'ok') + '">' + esc(e.status) + '</span><span class="pill demo">데모</span></div></div>'
-      + '<label class="search">' + ic('search', ' width="16" height="16"') + '<span class="sr">검색</span><input id="side-search" placeholder="규정, 서류, 연락처 검색"></label><nav class="nav" aria-label="주 메뉴">';
+    var h;
+    if (role === 'exhibitor') {
+      var e = ex();
+      h = '<div class="ws"><div class="ws-top"><div class="logo">ED</div><div style="min-width:0"><div class="ws-name">' + esc(e.name) + '</div><div class="ws-sub">' + esc(e.hall) + ' · 부스 ' + esc(e.booth) + '</div></div></div>'
+        + '<div class="row"><span class="role-pill ex">참가사</span><span class="pill ' + (isPre() ? 'warn' : 'ok') + '">' + esc(e.status) + '</span><span class="pill demo">데모</span></div></div>';
+    } else {
+      h = '<div class="ws"><div class="ws-top"><div class="logo">ED</div><div style="min-width:0"><div class="ws-name">' + esc(role === 'organizer' ? D.exhibitions.approved.name : '전시장 통합 관제') + '</div><div class="ws-sub">' + esc(role === 'organizer' ? 'Hall C · 참가사 ' + D.exhibitorsList.length + '곳' : 'Hall A·B·C·D · THE PLATZ') + '</div></div></div>'
+        + '<div class="row"><span class="role-pill ' + (role === 'organizer' ? 'org' : 'op') + '">' + rr.label + '</span><span class="pill demo">' + esc(rr.scen) + ' · 데모</span></div></div>';
+    }
+    h += '<label class="search">' + ic('search', ' width="16" height="16"') + '<span class="sr">검색</span><input id="side-search" placeholder="규정, 서류, 연락처 검색"></label><nav class="nav" aria-label="주 메뉴">';
     Object.keys(groups).forEach(function (g) {
       h += '<div class="nav-h">' + g + '</div>';
       groups[g].forEach(function (k) {
-        var r = ROUTES[k], locked = isPre() && !PRE_OPEN[k];
-        var badge = k === 'submissions' && !isPre() ? '<span class="tag n">' + unread + '</span>' : r.tag ? '<span class="tag">' + r.tag + '</span>' : '';
+        var r = R[k], locked = role === 'exhibitor' && isPre() && !PRE_OPEN[k];
+        var n = r.badge ? r.badge() : 0;
+        var badge = k === 'submissions' && !isPre() ? '<span class="tag n">' + unread + '</span>' : n ? '<span class="tag">' + n + '</span>' : r.tag ? '<span class="tag">' + r.tag + '</span>' : '';
         h += '<a href="#' + k + '" class="' + (k === cur ? 'on' : '') + (locked ? ' locked' : '') + '">' + ic(r.icon) + '<span>' + r.t + '</span>' + badge + '</a>';
       });
     });
-    h += '</nav><div class="side-foot">'
-      + '<div class="mode"><div class="mode-row"><span>데모 계정 상태</span><span class="muted">기준 11.05</span></div><div class="seg" role="group" aria-label="데모 계정 상태">'
+    h += '</nav><div class="side-foot">';
+    if (role === 'exhibitor') h += '<div class="mode"><div class="mode-row"><span>데모 계정 상태</span><span class="muted">기준 11.05</span></div><div class="seg" role="group" aria-label="데모 계정 상태">'
       + '<button data-mode="pre" class="' + (isPre() ? 'on' : '') + '">참가 신청 전</button><button data-mode="approved" class="' + (!isPre() ? 'on' : '') + '">신청 승인 완료</button></div></div>'
-      + (isPre() ? '' : '<a class="side-link" href="#booth">' + ic('phone', ' width="16" height="16"') + '부스 App 열기 <span class="tag n" style="margin-left:auto">전시 기간</span></a>')
-      + '<button class="side-link" id="reset">' + ic('reset', ' width="16" height="16"') + '데모 데이터 초기화</button>'
-      + '<div class="me"><div class="avatar">김</div><div><div style="font-weight:600;font-size:13px">' + esc(D.user.name) + ' 매니저</div><div class="muted" style="font-size:11.5px">' + esc(D.company.name) + ' · 전시 담당</div></div></div></div>';
+      + (isPre() ? '' : '<a class="side-link" href="#booth">' + ic('phone', ' width="16" height="16"') + '부스 App 열기 <span class="tag n" style="margin-left:auto">전시 기간</span></a>');
+    h += '<button class="side-link" id="reset">' + ic('reset', ' width="16" height="16"') + '데모 데이터 초기화</button>'
+      + '<button class="side-link" data-act="logout">' + ic('users', ' width="16" height="16"') + '다른 역할로 로그인</button>'
+      + '<div class="me"><div class="avatar">' + esc(rr.name.charAt(0)) + '</div><div><div style="font-weight:600;font-size:13px">' + esc(rr.name) + ' 매니저</div><div class="muted" style="font-size:11.5px">' + esc(rr.org) + ' · ' + rr.label + '</div></div></div></div>';
     return h;
   }
 
   function render() {
-    var cur = route();
+    applyTheme();
+    var login = !S.role;
+    $('#login').hidden = !login; $('.app').hidden = login;
+    if (login) { $('#login').innerHTML = viewLogin(); $('#fab').innerHTML = ''; $('#mini').hidden = true; document.title = '로그인 · EXPO DESK'; return; }
+    syncSub();
+    var cur = route(), R = routesFor();
     $('#side').innerHTML = renderSide(cur);
     $('#side').classList.remove('open');
-    $('#crumb').innerHTML = '<span>' + esc(ex().name) + '</span><span>/</span><b>' + ROUTES[cur].t + '</b>';
+    var title = S.role === 'exhibitor' ? ex().name : S.role === 'organizer' ? D.exhibitions.approved.name : '전시장 운영본부';
+    $('#crumb').innerHTML = '<span class="role-pill ' + { exhibitor: 'ex', organizer: 'org', operator: 'op' }[S.role] + '">' + D.roles[S.role].label + '</span><span>' + esc(title) + '</span><span>/</span><b>' + R[cur].t + '</b>';
     var c = $('#content');
     c.className = 'content';
-    var app = $('#main');
-    app.dataset.route = cur;
-    var fn = VIEWS[cur];
-    c.innerHTML = fn();
+    $('#main').dataset.route = cur;
+    c.innerHTML = VIEWS[cur]();
     if (cur === 'assistant') { c.style.padding = '0'; c.style.maxWidth = 'none'; } else { c.style.padding = ''; c.style.maxWidth = ''; }
+    mapRedraw = null;
     if (AFTER[cur]) AFTER[cur]();
     renderFab(cur);
-    document.title = ROUTES[cur].t + ' · EXPO DESK';
+    document.title = R[cur].t + ' · EXPO DESK';
     window.scrollTo(0, 0);
   }
 
@@ -301,14 +381,15 @@
       if (subFilter === 'done') return r.st === 'approved' || r.st === 'submitted';
       return true;
     });
-    var h = '<div class="page-h"><div><h1>제출·신청 관리</h1><p>주최사·코엑스에 낼 서류와 기술지원 신청을 한 곳에서 관리해요.</p></div><div class="row"><button class="btn" data-act="forms">' + ic('doc') + '양식 일괄 받기</button><button class="btn primary" data-go="check">' + ic('check') + 'AI 사전 점검</button></div></div>';
+    var h = '<div class="page-h"><div><h1>제출·신청 관리</h1><p>주최사·코엑스에 낼 서류와 기술지원 신청을 한 곳에서 관리해요.</p></div><div class="row"><button class="btn" data-act="inquiry">' + ic('chat') + '주최사에 문의</button><button class="btn" data-act="forms">' + ic('doc') + '양식 일괄 받기</button><button class="btn primary" data-go="check">' + ic('check') + 'AI 사전 점검</button></div></div>';
     h += '<div class="filters">' + [['all', '전체'], ['required', '우리 부스 필수'], ['cond', '조건부'], ['rejected', '반려'], ['done', '완료']].map(function (f) { return '<button data-subf="' + f[0] + '" class="' + (subFilter === f[0] ? 'on' : '') + '">' + f[1] + '<em class="tnum">' + counts[f[0]] + '</em></button>'; }).join('') + '</div>';
     h += '<div class="card"><div class="table-wrap"><table class="stack"><thead><tr><th>서류 / 신청</th><th>구분</th><th>제출처</th><th>근거</th><th>마감</th><th>상태</th><th></th></tr></thead><tbody>'
       + shown.map(function (s) {
         var reqLbl = s.req === 'required' ? '<span class="pill acc">필수</span>' : S.cond[s.cond] ? '<span class="pill acc">필수(조건)</span>' : '<span class="pill">선택</span>';
         var st = s.req === 'cond' && !S.cond[s.cond] ? 'na' : (s.st === 'na' ? 'todo' : s.st);
-        var act = st === 'rejected' ? '<button class="btn sm primary" data-precheck="' + s.id + '">수정본 점검</button>' : st === 'draft' ? '<button class="btn sm" data-precheck="' + s.id + '">AI 점검</button>' : st === 'todo' ? '<button class="btn sm" data-upload="' + s.id + '">' + ic('upload') + '업로드</button>' : st === 'na' ? '<span class="muted" style="font-size:12px">해당 없음</span>' : '<button class="btn sm ghost" data-act="view">' + esc(s.file || '보기') + '</button>';
-        return '<tr><td><div class="t-title">' + esc(s.title) + '</div><div class="t-desc">' + esc(s.desc) + '</div>' + (st === 'rejected' ? '<div class="reject"><b>반려 사유 · ' + s.rejectDate + '</b> ' + esc(s.reject) + '</div>' : '') + '</td>'
+        var rq = reqAll().filter(function (r) { return r.id === s.id; })[0], rst = rq ? reqState(rq) : null, rjReason = rst && rst.stage === 'rejected' && rst.reason ? rst.reason : s.reject;
+        var act = st === 'rejected' ? '<div class="row" style="flex-wrap:nowrap"><button class="btn sm primary" data-precheck="' + s.id + '">수정본 점검</button><button class="btn sm" data-upload="' + s.id + '">재제출</button></div>' : st === 'draft' ? '<button class="btn sm" data-precheck="' + s.id + '">AI 점검</button>' : st === 'todo' ? '<button class="btn sm" data-upload="' + s.id + '">' + ic('upload') + '업로드</button>' : st === 'na' ? '<span class="muted" style="font-size:12px">해당 없음</span>' : '<button class="btn sm ghost" data-act="view">' + esc(s.file || '보기') + '</button>';
+        return '<tr><td><div class="t-title">' + esc(s.title) + '</div><div class="t-desc">' + esc(s.desc) + '</div>' + (rst && st !== 'na' ? '<div style="margin-top:6px">' + chainHtml(rst) + '</div>' : '') + (st === 'rejected' ? '<div class="reject"><b>반려 사유 · ' + (rst && rst.by === 'op' ? '운영사' : '주최사') + (rst && S.req[s.id] ? '' : ' · ' + s.rejectDate) + '</b> ' + esc(rjReason) + '</div>' : '') + '</td>'
           + '<td data-l="구분">' + reqLbl + '</td><td data-l="제출처" style="font-size:12.5px">' + esc(s.to) + '</td><td data-l="근거">' + cite(s.src) + '</td><td data-l="마감" class="tnum" style="white-space:nowrap">' + md(s.due) + '<br>' + ddayHtml(s.due, st === 'approved' || st === 'submitted' || st === 'na') + '</td><td data-l="상태">' + statusPill(st) + '</td><td>' + act + '</td></tr>';
       }).join('') + '</tbody></table></div></div>'
       + '<p class="muted" style="font-size:12.5px;margin:0">조건부 서류는 <a href="#check">AI 사전 점검 › 조건별 필수 판정</a>의 답에 따라 필수 여부가 바뀌어요.</p>';
@@ -366,21 +447,92 @@
       dw: ['coex-dwg-the-platz-floor-2010'], web: 'coex-hall-the-platz' }
   };
   var dwSel = {};
+  /* ---------- 홀 맵 (2D 기본 / 3D 전환 / 길찾기) ---------- */
+  var MS = { mode: '2d', filter: 'all', sel: null, dest: null, angle: -28, zoom: 1, q: '' };
+  var mapRedraw = null;
+  function hmModel(key) {
+    var M0 = HallMap.model(key);
+    return { hall: M0.hall, booths: M0.booths.map(function (b) {
+      var a = S.assign[b.id];
+      if (a) return Object.assign({}, b, { st: 'booked', co: a, assigned: true });
+      if (b.st === 'mine' && S.role !== 'exhibitor') return Object.assign({}, b, { st: 'booked', co: '㈜한빛로보틱스' });
+      return b;
+    }) };
+  }
+  function mapStart(M) {
+    var mine = M.booths.filter(function (b) { return b.st === 'mine'; });
+    if (S.role === 'exhibitor' && mine.length) { var a = mine[0], z = mine[mine.length - 1]; return { label: '내 부스 ' + a.id + '~' + z.id.split('-')[1], pt: [(a.x + z.x + 3) / 2, a.y + 1.5] }; }
+    var g = M.hall.gates[0]; return { label: g.n, pt: [g.x, M.hall.h - .5] };
+  }
+  function mapDestObj(M) {
+    if (!MS.dest) return null;
+    if (MS.dest.indexOf('booth:') === 0) { var id = MS.dest.slice(6), b = M.booths.filter(function (x) { return x.id === id; })[0]; return b ? { booth: true, x: b.x + 1.5, y: b.y + 1.5, n: b.id + (b.co ? ' · ' + b.co : '') } : null; }
+    return HallMap.poiList(M).filter(function (p) { return p.id === MS.dest; })[0] || null;
+  }
+  function mapBlock(key, opt) {
+    opt = opt || {};
+    var M = hmModel(key), H = M.hall, start = mapStart(M), dest = mapDestObj(M);
+    var rt = dest ? HallMap.route(M, start.pt, dest) : null;
+    var booked = M.booths.filter(function (b) { return b.st === 'booked'; }).length, vac = M.booths.filter(function (b) { return b.st === 'vacant'; }).length;
+    var sel = MS.sel && M.booths.filter(function (b) { return b.id === MS.sel; })[0];
+    var nameN = {}; HallMap.poiList(M).forEach(function (p) { nameN[p.n] = (nameN[p.n] || 0) + 1; });
+    var poiName = function (p) { var z = (H.zones.filter(function (z) { return p.x >= z.x && p.x < z.x + z.w; })[0] || {}).n; return p.n.replace('화물출입구 ', '화물 ') + (nameN[p.n] > 1 && z ? ' · ' + z : ''); };
+    var pois = HallMap.poiList(M), groups = [['화물출입구', pois.filter(function (p) { return p.t === 'door'; })], ['주출입구', pois.filter(function (p) { return p.t === 'gate'; })], ['편의·부대시설', pois.filter(function (p) { return p.t !== 'door' && p.t !== 'gate'; })]];
+    var h = '<section class="map-shell"><div class="card map-card"><div class="map-tools"><div class="seg" role="group" aria-label="보기 방식" style="width:150px"><button data-mm="2d" class="' + (MS.mode === '2d' ? 'on' : '') + '">2D 평면</button><button data-mm="3d" class="' + (MS.mode === '3d' ? 'on' : '') + '">3D 입체</button></div>'
+      + '<div class="filters"><button data-mf="all" class="' + (MS.filter === 'all' ? 'on' : '') + '">전체 부스</button><button data-mf="vacant" class="' + (MS.filter === 'vacant' ? 'on' : '') + '">공실만</button></div>'
+      + '<div class="legend-row" style="margin-left:auto">' + (H.mine.length && S.role === 'exhibitor' ? '<span><i style="background:var(--accent)"></i>내 부스</span>' : '') + '<span><i style="background:var(--map-booked)"></i>입실 ' + booked + '</span><span><i style="background:var(--map-vacant);border:1.5px dashed var(--map-vacant-line)"></i>공실 ' + vac + '</span><span><i style="background:var(--map-door)"></i>화물출입구</span><span><i style="background:var(--map-gate)"></i>주출입구</span></div></div>'
+      + '<div class="map-stage">' + (MS.mode === '2d' ? '<div class="map-scroll">' + HallMap.svg2D(M, { sel: MS.sel, dest: MS.dest, route: rt, filter: MS.filter, mine: S.role === 'exhibitor', hi: opt.hi }) + '</div>'
+        : '<canvas id="hm3d" aria-label="' + H.name + ' 3D 입체 보기"></canvas><div class="map-3d-ctl"><button data-rot="-15" aria-label="왼쪽으로 회전">⟲</button><button data-rot="15" aria-label="오른쪽으로 회전">⟳</button><button data-zm="1.15" aria-label="확대">＋</button><button data-zm="0.87" aria-label="축소">－</button></div><div class="map-hint">드래그해서 돌려 보세요</div>')
+      + '</div><div class="row" style="padding:10px 14px;border-top:1px solid var(--line);justify-content:space-between"><span class="muted" style="font-size:12px">홀 외곽·구역·화물출입구 규격은 2024 CAD 기준 · 부스 배치·번호·예약 현황·편의시설 위치는 데모 개략값</span><button class="btn sm" data-cad="' + key + '">' + ic('doc') + '원본 CAD 도면</button></div></div>';
+    h += '<div class="map-side">';
+    if (opt.side) h += opt.side(M, sel);
+    h += '<div class="card"><div class="card-h"><h2>길찾기</h2>' + (rt ? '<button class="link-row" data-mclear="1">지우기</button>' : '') + '</div><div class="card-b" style="display:flex;flex-direction:column;gap:12px">'
+      + '<div class="verdict"><span class="ck ok" style="background:var(--accent);color:var(--on-accent)">●</span><div><div class="t-desc">출발</div><b>' + esc(start.label) + '</b></div></div>'
+      + '<form class="row" id="booth-find" style="flex-wrap:nowrap"><label class="sr" for="booth-q">부스 번호</label><input id="booth-q" placeholder="부스 번호 예) ' + H.letter + '-112" value="' + esc(MS.q) + '" style="flex:1;min-width:0;border:1px solid var(--line-2);border-radius:var(--r-sm);padding:7px 10px;background:var(--surface)"><button class="btn sm" type="submit">찾기</button></form>'
+      + groups.map(function (g) { return '<div><div class="t-desc" style="margin-bottom:6px">' + g[0] + '</div><div class="poi-list">' + g[1].map(function (p) { return '<button data-dest="' + p.id + '" class="' + (MS.dest === p.id ? 'on' : '') + '">' + esc(poiName(p)) + '</button>'; }).join('') + '</div></div>'; }).join('')
+      + (rt ? '<div style="border-top:1px solid var(--line);padding-top:12px"><div class="t-desc">도착 · ' + esc(dest.booth ? dest.n : poiName(dest)) + (dest.spec ? ' · ' + dest.spec : '') + '</div><div class="big-metric"><b>' + Math.round(rt.len) + 'm</b><span class="muted">도보 약 ' + Math.max(1, Math.round(rt.len / 70)) + '분</span></div><div class="nav-steps" style="margin-top:6px">' + rt.steps.map(function (s) { return '<div>' + esc(s.dir) + '으로 ' + s.d + 'm</div>'; }).join('') + '<div>도착</div></div></div>' : dest ? '<div class="verdict">경로를 찾지 못했어요.</div>' : '<p class="muted" style="font-size:12.5px;margin:0">가고 싶은 곳을 누르거나 지도의 부스를 눌러 보세요. 통로만 따라 가장 짧은 길을 계산해요.</p>')
+      + '</div></div>';
+    if (sel) h += '<div class="card"><div class="card-h"><h2>' + sel.id + '</h2>' + (sel.st === 'vacant' ? '<span class="pill ok">공실</span>' : sel.st === 'mine' ? '<span class="pill acc">내 부스</span>' : '<span class="pill">입실</span>') + '</div><div class="card-b" style="display:flex;flex-direction:column;gap:8px"><dl class="meta-grid"><dt>참가사</dt><dd>' + esc(sel.co || '—') + '</dd><dt>규격</dt><dd>3 × 3m (9㎡)</dd><dt>구역</dt><dd>' + esc((H.zones.filter(function (z) { return sel.x >= z.x && sel.x < z.x + z.w; })[0] || {}).n || '') + '</dd></dl>'
+      + '<div class="row"><button class="btn sm primary" data-dest="booth:' + sel.id + '">여기로 길찾기</button>' + (opt.selAct ? opt.selAct(sel) : '') + '</div></div></div>';
+    return h + '</div></section>';
+  }
+  function mapAfter() {
+    var sc = $('.map-scroll');
+    if (sc && sc.scrollWidth > sc.clientWidth) {
+      var mk = sc.querySelector('.hm-b.sel') || sc.querySelector('.hm-pin.start') || sc.querySelector('.hm-you');
+      if (mk) { var r = mk.getBoundingClientRect(), r0 = sc.getBoundingClientRect(); sc.scrollLeft += r.left - r0.left - sc.clientWidth / 2; }
+    }
+    var cv = $('#hm3d');
+    if (!cv) { mapRedraw = function () {}; return; }
+    var key = cv.closest('[data-hallkey]') ? cv.closest('[data-hallkey]').dataset.hallkey : 'c';
+    var M = hmModel(key), start = mapStart(M), dest = mapDestObj(M), rt = dest ? HallMap.route(M, start.pt, dest) : null;
+    mapRedraw = function () { HallMap.draw3D(cv, M, { angle: MS.angle, zoom: MS.zoom, route: rt, dest: MS.dest, mine: S.role === 'exhibitor' }); };
+    mapRedraw();
+    var drag = null;
+    cv.addEventListener('pointerdown', function (e) { drag = e.clientX; cv.setPointerCapture(e.pointerId); });
+    cv.addEventListener('pointermove', function (e) { if (drag == null) return; MS.angle += (e.clientX - drag) * 0.4; drag = e.clientX; mapRedraw(); });
+    cv.addEventListener('pointerup', function () { drag = null; });
+  }
+  window.addEventListener('resize', function () { if (mapRedraw && $('#hm3d')) mapRedraw(); });
+
   function viewHalls() {
     if (!hallSel) hallSel = ex().hallKey;
-    var H = HALLS[hallSel], dwId = dwSel[hallSel] || H.dw[0], dd = docOf(dwId);
-    var h = '<div class="page-h"><div><h1>홀·도면</h1><p>COEX 웹 공시와 2024 CAD 도면을 함께 정제한 값이에요. 자료끼리 다른 값은 그대로 드러내요.</p></div><div class="hall-tabs" role="tablist">'
-      + Object.keys(HALLS).map(function (k) { return '<button role="tab" aria-selected="' + (k === hallSel) + '" data-hall="' + k + '" class="' + (k === hallSel ? 'on' : '') + '">' + HALLS[k].name + (k === ex().hallKey ? ' ·우리' : '') + '</button>'; }).join('') + '</div></div>';
+    var H = HALLS[hallSel];
+    var h = '<div class="page-h"><div><h1>홀 맵·도면</h1><p>' + (S.role === 'exhibitor' && hallSel === ex().hallKey && !isPre() ? '보라색이 우리 부스예요. 가고 싶은 곳을 고르면 통로를 따라 길을 안내해요.' : '부스 입실·공실 현황과 길찾기를 볼 수 있어요.') + '</p></div><div class="hall-tabs" role="tablist">'
+      + Object.keys(HALLS).map(function (k) { return '<button role="tab" aria-selected="' + (k === hallSel) + '" data-hall="' + k + '" class="' + (k === hallSel ? 'on' : '') + '">' + HALLS[k].name + (k === ex().hallKey && S.role === 'exhibitor' ? ' ·우리' : '') + '</button>'; }).join('') + '</div></div>';
     h += '<div class="spec"><div><small>위치</small><b>' + H.floor + '</b></div><div><small>면적</small><b>' + H.area + '</b></div><div><small>수용</small><b>' + H.booths + '</b></div><div><small>바닥 하중</small><b>' + H.load + '</b></div>'
-      + '<div><small>천장고</small><b>' + H.ceil + '</b><small>' + H.ceilNote + '</small></div><div><small>화물출입구</small><b style="font-size:15px">' + H.door + '</b></div><div><small>천장 리깅</small><b style="font-size:15px">' + H.rig + '</b></div><div><small>근거</small><span class="row" style="margin-top:4px">' + cite({ chunk: H.web + (H.web === 'coex-hall-the-platz' ? '#02-spec-detail' : '#02-spec-detail') }, '웹') + '</span></div></div>';
-    h += '<section class="grid g-main"><div class="card"><div class="card-h"><h2>' + esc(dd ? dd.title : '') + '</h2><div class="filters">' + H.dw.map(function (id) { var d = docOf(id); return '<button data-dw="' + id + '" class="' + (id === dwId ? 'on' : '') + '">' + esc(d.type) + '</button>'; }).join('') + '</div></div><div class="card-b">'
-      + (dd && dd.img ? '<div class="drawing" id="drawing" title="클릭해서 확대"><img src="' + dd.img + '" alt="' + esc(dd.title) + '"></div><p class="muted" style="font-size:12px;margin:8px 0 0">클릭하면 확대돼요 · 원본 ' + esc(dd.url) + '</p>' : '<div class="empty">이 도면은 이미지가 저해상도라 데모에 싣지 않았어요. 아래 판독 내용만 볼 수 있어요.</div>')
-      + '</div></div><div class="grid" style="align-content:start"><div class="card"><div class="card-h"><h2>자료 간 차이 · 확인 필요</h2></div><div class="card-b" style="display:flex;flex-direction:column;gap:10px">'
-      + H.flags.map(function (f) { return '<div class="verdict' + (f.ok ? '' : ' need') + '" style="' + (f.ok ? '' : 'background:var(--warn-weak)') + '">' + (f.ok ? '<span class="ck ok">✓</span>' : '<span class="ck warn">!</span>') + '<div style="flex:1;min-width:0"><b>' + esc(f.t) + '</b> ' + (f.ok ? '<span class="pill ok">결정됨</span>' : '<span class="pill warn">확인 필요</span>') + '<div class="t-desc" style="margin-top:4px">' + esc(f.d) + '</div><div style="margin-top:6px">' + cite(f.src) + '</div></div></div>'; }).join('')
-      + '</div></div><div class="card"><div class="card-h"><h2>도면 판독 내용</h2>' + valPill('vision_extracted_needs_review') + '</div><div class="card-b">'
-      + CH.filter(function (c) { return c.doc === dwId; }).map(function (c) { return '<div class="chunk"><b style="font-size:13px">' + esc(c.sec) + '</b><p>' + hl(c.text) + '</p></div>'; }).join('')
-      + '</div></div></div></section>';
+      + '<div><small>천장고</small><b>' + H.ceil + '</b><small>' + H.ceilNote + '</small></div><div><small>화물출입구</small><b style="font-size:15px">' + H.door + '</b></div><div><small>천장 리깅</small><b style="font-size:15px">' + H.rig + '</b></div><div><small>근거</small><span class="row" style="margin-top:4px">' + cite({ chunk: H.web + '#02-spec-detail' }, '웹') + '</span></div></div>';
+    if (HallMap.HALLS[hallSel]) h += '<div data-hallkey="' + hallSel + '">' + mapBlock(hallSel) + '</div>';
+    else h += '<div class="card"><div class="card-b"><div class="empty">THE PLATZ는 2010년 저해상도 도면만 있어 부스 맵을 만들지 않았어요. 고해상도 원본이 들어오면 같은 방식으로 추가할 수 있어요.</div></div></div>';
+    h += '<section class="card"><div class="card-h"><h2>자료 간 차이 · 확인 필요</h2><button class="btn sm" data-cad="' + hallSel + '">도면 판독 내용 보기</button></div><div class="card-b grid g-2">'
+      + H.flags.map(function (f) { return '<div class="verdict" style="' + (f.ok ? '' : 'background:var(--warn-weak)') + '">' + (f.ok ? '<span class="ck ok">✓</span>' : '<span class="ck warn">!</span>') + '<div style="flex:1;min-width:0"><b>' + esc(f.t) + '</b> ' + (f.ok ? '<span class="pill ok">결정됨</span>' : '<span class="pill warn">확인 필요</span>') + '<div class="t-desc" style="margin-top:4px">' + esc(f.d) + '</div><div style="margin-top:6px">' + cite(f.src) + '</div></div></div>'; }).join('') + '</div></section>';
     return h;
+  }
+  function openCad(key) {
+    var H = HALLS[key], ids = H.dw;
+    $('#drawer').innerHTML = '<div class="drawer-h"><div><span class="pill info">원본 CAD</span><h2 style="font-size:17px;margin-top:8px">' + H.name + ' 도면·판독 내용</h2><div class="muted" style="font-size:12.5px">2024 CAD PDF를 렌더링한 원본과 AI 판독 결과예요.</div></div><button class="icon-btn" data-act="close" aria-label="닫기">' + ic('x') + '</button></div><div class="drawer-b">'
+      + ids.map(function (id) { var d = docOf(id); return '<div style="display:flex;flex-direction:column;gap:8px"><div class="row"><b>' + esc(d.title) + '</b>' + valPill('vision_extracted_needs_review') + '</div>' + (d.img ? '<div class="drawing" style="max-height:300px"><img src="' + d.img + '" alt="' + esc(d.title) + '"></div>' : '') + CH.filter(function (c) { return c.doc === id; }).map(function (c) { return '<div class="chunk"><b style="font-size:13px">' + esc(c.sec) + '</b><p>' + hl(c.text) + '</p></div>'; }).join('') + '</div>'; }).join('<hr style="border:0;border-top:1px solid var(--line);margin:8px 0">') + '</div>';
+    $('#drawer').hidden = false; $('#scrim').hidden = false;
   }
   function hl(t) { return esc(t).replace(/\[(확인 필요|검증 메모)\]/g, '<mark>$1</mark>'); }
 
@@ -530,7 +682,7 @@
     h += '<div class="ans">' + (res.hold ? '<div class="hold">' + ic('alert', ' width="16" height="16" style="flex:none;margin-top:2px"') + '<span><b>확정 보류</b> · ' + esc(res.hold) + '</span></div>' : '') + body;
     if (res.cites && res.cites.length) h += '<div class="row" style="margin-top:10px">' + res.cites.map(function (c, i) { return cite(c, String(i + 1)); }).join('') + '</div>';
     h += '</div>';
-    if (res.follow && res.follow.length) h += '<div class="follow">' + res.follow.map(function (f) { return '<button data-q="' + esc(f) + '">' + esc(f) + '</button>'; }).join('') + '</div>';
+    if ((res.follow && res.follow.length) || (res.hold && S.role === 'exhibitor')) h += '<div class="follow">' + (res.hold && S.role === 'exhibitor' ? '<button data-act="inquiry">주최사에 문의 보내기</button>' : '') + (res.follow || []).map(function (f) { return '<button data-q="' + esc(f) + '">' + esc(f) + '</button>'; }).join('') + '</div>';
     return h + '</div>';
   }
   function activeChat() { for (var i = 0; i < S.chats.length; i++) if (S.chats[i].id === S.active) return S.chats[i]; return null; }
@@ -609,11 +761,202 @@
       + (d.url ? '<p class="muted" style="font-size:12px;margin:0;word-break:break-all">출처 · ' + (d.url.indexOf('http') === 0 ? '<a href="' + esc(d.url) + '" target="_blank" rel="noopener">' + esc(d.url) + '</a>' : esc(d.url)) + '</p>' : '') + '</div>';
     $('#drawer').hidden = false; $('#scrim').hidden = false;
   }
-  function closeDrawer() { $('#drawer').hidden = true; $('#scrim').hidden = true; }
+  function closeDrawer() { $('#drawer').hidden = true; $('#scrim').hidden = true; var m = $('#modal'); if (m) m.hidden = true; }
+
+  /* ================= 주최사 · 운영사 콘솔 ================= */
+  function allInq() { return D.inquiries.concat(S.sent || []); }
+  var inqSel = null, opTab = 'op', opSel = {};
+  function soft() { var y = window.scrollY; render(true); window.scrollTo(0, y); }
+  function exDocs(e) {
+    if (!e.live) return e.docs;
+    var req = D.submissions.filter(function (s) { return s.req === 'required'; });
+    return [req.filter(function (s) { return S.sub[s.id] === 'approved' || S.sub[s.id] === 'submitted'; }).length, req.length];
+  }
+  function exRejected(e) { return e.live ? reqAll().filter(function (r) { return r.co === e.co && reqState(r).stage === 'rejected'; }).length : (e.rej || 0); }
+  function pctBar(a, b) { var p = b ? a / b : 0; return '<div class="row" style="flex-wrap:nowrap;gap:8px"><div class="bar-track" style="flex:1;min-width:60px"><div class="bar-fill" style="width:' + Math.round(p * 100) + '%;' + (p < .5 ? 'background:var(--warn)' : '') + '"></div></div><span class="tnum muted" style="font-size:12px">' + a + '/' + b + '</span></div>'; }
+  function stagePill(st) {
+    return { org: '<span class="pill info">주최사 검토</span>', op: '<span class="pill warn">운영사 승인 대기</span>', approved: '<span class="pill ok">승인</span>', rejected: '<span class="pill bad">반려</span>' }[st.stage] || '';
+  }
+  function briefing(items) {
+    return '<div class="card"><div class="card-h"><h2>AI 브리핑</h2><span class="tag">AI</span></div><div class="card-b" style="display:flex;flex-direction:column;gap:10px">'
+      + items.map(function (x) { return '<div class="verdict' + (x.need ? ' need' : '') + '">' + ic(x.i || 'alert', ' width="18" height="18" style="color:' + (x.need ? 'var(--bad)' : 'var(--accent)') + ';flex:none;margin-top:2px"') + '<div style="flex:1;min-width:0"><b>' + x.t + '</b><div class="t-desc">' + x.d + '</div>' + (x.src ? '<div style="margin-top:6px">' + cite(x.src) + '</div>' : '') + (x.go ? '<div style="margin-top:8px"><a class="btn sm" href="#' + x.go + '">' + x.btn + '</a></div>' : '') + '</div></div>'; }).join('') + '</div></div>';
+  }
+  function reqCard(r, actor) {
+    var st = reqState(r), canAct = (actor === 'org' && st.stage === 'org') || (actor === 'op' && (st.stage === 'op' || st.stage === 'org'));
+    return '<div class="card"><div class="card-b" style="display:flex;flex-direction:column;gap:10px"><div class="row" style="justify-content:space-between;align-items:flex-start;flex-wrap:nowrap"><div style="min-width:0">'
+      + '<div class="row">' + (actor === 'op' && canAct ? '<input type="checkbox" data-rqsel="' + r.id + '" aria-label="선택"' + (opSel[r.id] ? ' checked' : '') + '>' : '') + '<span class="pill">' + esc(r.type) + '</span><span class="role-pill ' + (r.from === 'org' ? 'org' : 'ex') + '" style="font-size:11px;padding:1px 8px">' + (r.from === 'org' ? '주최사' : '참가사') + '</span>' + stagePill(st) + (r.flag ? '<span class="pill bad">AI · ' + esc(r.flag) + '</span>' : '') + '</div>'
+      + '<div class="t-title" style="margin-top:6px">' + esc(r.title) + '</div><div class="t-desc">' + esc(r.co) + ' · 부스 ' + esc(r.booth) + ' · ' + esc(r.file) + ' · 제출 ' + r.at + '</div></div>'
+      + '<div style="text-align:right;flex:none"><div class="tnum" style="font-size:12px">마감 ' + md(r.due) + '</div>' + ddayHtml(r.due, st.stage === 'approved') + '</div></div>'
+      + '<div class="row" style="justify-content:space-between">' + chainHtml(st) + '<span>' + cite(r.src) + '</span></div>'
+      + (st.stage === 'rejected' && st.reason ? '<div class="reject"><b>반려 사유 · ' + (st.by === 'op' ? '운영사' : '주최사') + '</b> ' + esc(st.reason) + '</div>' : '')
+      + (canAct ? '<div class="row" style="justify-content:flex-end"><button class="btn sm" data-rqno="' + r.id + '">반려</button><button class="btn sm primary" data-rqok="' + r.id + '">' + (actor === 'org' ? '검토 통과 · 운영사로' : st.stage === 'org' ? '직권 승인' : '승인') + '</button></div>' : '')
+      + '</div></div>';
+  }
+  function decide(id, ok, reason) {
+    var r = reqAll().filter(function (x) { return x.id === id; })[0], st = reqState(r), me = S.role === 'organizer' ? 'org' : 'op';
+    if (ok) S.req[id] = { stage: me === 'org' ? 'op' : 'approved', by: me };
+    else S.req[id] = { stage: 'rejected', by: me, reason: reason };
+    logPush((ok ? (me === 'org' ? '1차 검토 통과 → 운영사 · ' : '승인 · ') : '반려 · ') + r.co + ' · ' + r.title);
+    delete opSel[id];
+    save();
+  }
+
+  /* ----- 모달 ----- */
+  function openModal(html) { var m = $('#modal'); if (!m) { m = document.createElement('div'); m.id = 'modal'; m.className = 'modal'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true'); document.body.appendChild(m); } m.innerHTML = html; m.hidden = false; $('#scrim').hidden = false; var f = m.querySelector('textarea,select,input'); if (f) f.focus(); }
+  function closeModal() { var m = $('#modal'); if (m) m.hidden = true; }
+  function rejectModal(id) {
+    var r = reqAll().filter(function (x) { return x.id === id; })[0];
+    openModal('<div class="modal-h"><div><span class="pill bad">반려</span><h2 style="font-size:17px;margin-top:8px">' + esc(r.title) + '</h2><div class="muted" style="font-size:12.5px">' + esc(r.co) + ' · ' + esc(r.file) + '</div></div><button class="icon-btn" data-act="mclose" aria-label="닫기">' + ic('x') + '</button></div>'
+      + '<div class="modal-b"><div class="field"><label for="rj-text">반려 사유 <span class="tag">AI 초안</span></label><textarea id="rj-text" rows="5">' + esc(D.rejectDrafts[r.type] || '보완이 필요합니다. 확인 후 다시 제출해 주세요.') + '</textarea></div>'
+      + '<div class="verdict"><span class="ck warn">!</span><div style="flex:1;min-width:0"><b>근거</b><div class="t-desc">반려 사유와 함께 아래 근거가 ' + (r.from === 'org' ? '주최사' : '참가사') + '에게 전달돼요.</div><div style="margin-top:6px">' + cite(r.src) + '</div></div></div></div>'
+      + '<div class="modal-f"><button class="btn" data-act="mclose">취소</button><button class="btn primary" data-rjgo="' + id + '" style="background:var(--bad);border-color:var(--bad)">반려 보내기</button></div>');
+  }
+  function inquiryModal() {
+    openModal('<div class="modal-h"><div><span class="role-pill org">주최사에 문의</span><h2 style="font-size:17px;margin-top:8px">사무국에 질문 보내기</h2><div class="muted" style="font-size:12.5px">주최사 문의함에 바로 들어가요. 답변이 오면 알림으로 알려드려요.</div></div><button class="icon-btn" data-act="mclose" aria-label="닫기">' + ic('x') + '</button></div>'
+      + '<div class="modal-b"><div class="field"><label for="iq-text">문의 내용</label><textarea id="iq-text" rows="4" placeholder="예) 부스 안에서 시연용 지게차를 써도 되나요?"></textarea></div></div>'
+      + '<div class="modal-f"><button class="btn" data-act="mclose">취소</button><button class="btn primary" data-act="iqsend">보내기</button></div>');
+  }
+  function assignModal(id) {
+    var opts = D.exhibitorsList.map(function (e) { return '<option>' + esc(e.co) + '</option>'; }).join('') + '<option>신규 참가사(대기)</option>';
+    openModal('<div class="modal-h"><div><span class="pill ok">공실</span><h2 style="font-size:17px;margin-top:8px">' + id + ' 부스 배정</h2><div class="muted" style="font-size:12.5px">3 × 3m · 배정하면 홀 맵에 바로 입실로 표시돼요.</div></div><button class="icon-btn" data-act="mclose" aria-label="닫기">' + ic('x') + '</button></div>'
+      + '<div class="modal-b"><div class="field"><label for="as-co">참가사</label><select id="as-co">' + opts + '</select></div></div>'
+      + '<div class="modal-f"><button class="btn" data-act="mclose">취소</button><button class="btn primary" data-asgo="' + id + '">배정하기</button></div>');
+  }
+  function relayModal() {
+    var types = ['기술지원 취합', '반입 계획', '광고시설물', '부대시설 대관'];
+    openModal('<div class="modal-h"><div><span class="role-pill org">운영사에 신청</span><h2 style="font-size:17px;margin-top:8px">새 신청 올리기</h2><div class="muted" style="font-size:12.5px">운영사 통합 승인함으로 바로 들어가요.</div></div><button class="icon-btn" data-act="mclose" aria-label="닫기">' + ic('x') + '</button></div>'
+      + '<div class="modal-b"><div class="field"><label for="rl-type">구분</label><select id="rl-type">' + types.map(function (t) { return '<option>' + t + '</option>'; }).join('') + '</select></div><div class="field"><label for="rl-title">신청 내용</label><input id="rl-title" value="기술지원 신청 취합본 (2차)"></div></div>'
+      + '<div class="modal-f"><button class="btn" data-act="mclose">취소</button><button class="btn primary" data-act="rlsend">신청 올리기</button></div>');
+  }
+
+  /* ----- 주최사 ----- */
+  function viewOrgHome() {
+    var e = D.exhibitions.approved, L = D.exhibitorsList, late = L.filter(function (x) { return x.late; });
+    var newInq = allInq().filter(function (q) { return inqSt(q) === 'new'; }).length, mine = reqAll().filter(function (r) { return r.from === 'org'; });
+    var h = '<section class="hero"><h1>' + esc(D.roles.organizer.name) + '님, 개막까지 ' + days(e.open) + '일 남았어요.<br>참가사 ' + L.length + '곳 중 무엇부터 챙길까요?</h1>' + composerHtml('home-q', '참가사 문의나 규정을 물어보세요 · 예) 천장 배너 하중 기준은?') + '</section>';
+    h += '<section class="grid g-4">' + kpi('#org-exhibitors', '참가사', L.length, '곳', '독려 필요 ' + late.length + '곳', null)
+      + kpi('#org-review', '서류 1차 검토', reqCount('org'), '건 대기', 'AI 의심 표시 1건', null, true)
+      + kpi('#org-inbox', '새 문의', newInq, '건', 'AI 답변 초안 준비됨', null, true)
+      + kpi('#org-relay', '운영사 승인 대기', mine.filter(function (r) { return reqState(r).stage === 'op'; }).length, '/ ' + mine.length + '건', '주최사가 올린 신청', null) + '</section>';
+    h += '<section class="grid g-main"><div class="card"><div class="card-h"><h2>전시 준비 단계별 현황</h2><span class="muted" style="font-size:12px">참가사 ' + L.length + '곳 기준</span></div><div class="card-b stage-bars">'
+      + D.orgStages.map(function (s) { var p = s.done / s.total; return '<div class="sb"><span style="min-width:0">' + esc(s.n) + '<br><span class="muted tnum" style="font-size:11.5px">마감 ' + s.due + '</span></span><div class="bar-track"><div class="bar-fill" style="width:' + Math.round(p * 100) + '%;' + (p < .5 ? 'background:var(--warn)' : '') + '"></div></div><span class="tnum" style="text-align:right">' + s.done + '/' + s.total + '</span></div>'; }).join('') + '</div></div>'
+      + briefing([
+        { need: true, t: '천장 배너 신청 1건이 기준 하중을 넘어요', d: '케이드라이브 로고 배너 2개 · 각 180kg. Hall C 1Point 적정 인양하중은 150kg이에요.', src: { chunk: 'coex-dwg-hall-c-ceiling-2024#01-rigging' }, go: 'org-review', btn: '검토하러 가기' },
+        { t: '도면 마감(11.06)까지 6곳이 미제출이에요', d: '그린팩토리·도담테크는 서류 진행률이 30% 아래예요. 독려 알림을 보내 보세요.', i: 'bell', go: 'org-exhibitors', btn: '참가사 현황' },
+        { t: '새 문의 ' + newInq + '건 중 3건은 근거 문서로 바로 답할 수 있어요', d: '화물출입구 크기, 천장 배너 하중, 커피머신 급배수', i: 'chat', go: 'org-inbox', btn: '문의 관리' }
+      ]) + '</section>';
+    return h;
+  }
+  function viewOrgExhibitors() {
+    var h = '<div class="page-h"><div><h1>참가사 현황</h1><p>참가사별 서류 진행률과 반려·문의를 한눈에 봐요. ㈜한빛로보틱스는 참가사 화면의 실제 상태가 반영돼요.</p></div><button class="btn" data-act="nudgeall">' + ic('bell') + '지연 참가사 일괄 독려</button></div>';
+    h += '<div class="card"><div class="table-wrap"><table class="stack"><thead><tr><th>참가사</th><th>부스</th><th>담당</th><th>필수 서류</th><th>반려</th><th>문의</th><th>상태</th><th></th></tr></thead><tbody>'
+      + D.exhibitorsList.map(function (e) {
+        var d = exDocs(e), rj = exRejected(e), st = e.late ? '<span class="pill bad">지연</span>' : rj ? '<span class="pill warn">보완 중</span>' : d[0] === d[1] ? '<span class="pill ok">완료</span>' : '<span class="pill">진행 중</span>';
+        return '<tr><td><div class="t-title">' + esc(e.co) + (e.live ? ' <span class="pill acc">실시간</span>' : '') + '</div></td><td data-l="부스" class="tnum">' + esc(e.booth) + ' · ' + e.size + '㎡</td><td data-l="담당">' + esc(e.mgr) + '</td><td data-l="서류" style="min-width:140px">' + pctBar(d[0], d[1]) + '</td><td data-l="반려" class="tnum">' + (rj || '—') + '</td><td data-l="문의" class="tnum">' + (e.inq || '—') + '</td><td data-l="상태">' + st + '</td><td>' + (d[0] < d[1] ? '<button class="btn sm" data-nudge="' + esc(e.co) + '">독려</button>' : '') + '</td></tr>';
+      }).join('') + '</tbody></table></div></div>';
+    return h;
+  }
+  function viewOrgReview() {
+    var q = reqAll().filter(function (r) { return r.from === 'ex' && reqState(r).stage === 'org'; }), done = reqAll().filter(function (r) { return r.from === 'ex' && reqState(r).stage !== 'org'; });
+    var h = '<div class="page-h"><div><h1>서류 1차 검토</h1><p>참가사가 낸 서류를 근거 문서와 대조해 운영사로 넘기거나 반려해요. 반려 사유는 AI가 근거와 함께 초안을 써 둬요.</p></div></div>';
+    h += '<h2 style="font-size:15px">검토 대기 ' + q.length + '건</h2>' + (q.length ? q.map(function (r) { return reqCard(r, 'org'); }).join('') : '<div class="card"><div class="empty">검토할 서류가 없어요.</div></div>');
+    h += '<h2 style="font-size:15px;margin-top:8px">처리한 서류</h2>' + done.map(function (r) { return reqCard(r, 'org'); }).join('');
+    return h;
+  }
+  function viewOrgInbox() {
+    var L = allInq().slice().sort(function (a, b) { return (inqSt(a) === 'new' ? 0 : 1) - (inqSt(b) === 'new' ? 0 : 1); });
+    if (!inqSel || !L.filter(function (q) { return q.id === inqSel; }).length) inqSel = L[0].id;
+    var q = L.filter(function (x) { return x.id === inqSel; })[0], st = inqSt(q);
+    var stp = function (s) { return { new: '<span class="pill bad">새 문의</span>', answered: '<span class="pill ok">답변 완료</span>', escalated: '<span class="pill warn">운영사 이관</span>' }[s]; };
+    var res = answer(q.ask), draft = (S.inq[q.id] || {}).reply || q.draft || (res.html || '').replace(/<[^>]+>/g, '').replace(/\[\d\]/g, '').replace(/\s+/g, ' ').trim();
+    var h = '<div class="page-h"><div><h1>문의 관리</h1><p>참가사 문의에 AI가 근거 문서로 답변 초안을 써 둬요. 확인하고 보내거나, 시설 문제는 운영사로 넘겨요.</p></div></div>';
+    h += '<div class="inbox"><div class="card" style="overflow:hidden;align-self:start">' + L.map(function (x) { return '<button class="inq' + (x.id === inqSel ? ' on' : '') + '" data-inq="' + x.id + '"><span class="top"><span>' + esc(x.co) + ' · ' + esc(x.who) + '</span><span class="tnum">' + x.at + '</span></span><span style="font-size:13.5px;font-weight:' + (inqSt(x) === 'new' ? 700 : 400) + '">' + esc(x.q) + '</span><span>' + stp(inqSt(x)) + '</span></button>'; }).join('') + '</div>';
+    h += '<div class="card"><div class="card-h"><h2>' + esc(q.co) + ' · ' + esc(q.who) + '</h2>' + stp(st) + '</div><div class="card-b" style="display:flex;flex-direction:column;gap:14px"><div class="msg-u" style="align-self:flex-start;max-width:100%">' + esc(q.q) + '</div>'
+      + '<div class="msg-a" style="max-width:100%">' + (res.steps ? '<div class="muted" style="font-size:12px">AI가 ' + res.steps.length + '가지 업무를 진행했어요 · ' + esc(res.steps.map(function (s) { return s[0]; }).join(' → ')) + '</div>' : '') + (res.hold ? '<div class="hold">' + ic('alert', ' width="16" height="16" style="flex:none;margin-top:2px"') + '<span><b>확정 보류</b> · ' + esc(res.hold) + ' 운영사 이관을 권해요.</span></div>' : '') + '</div>'
+      + '<div class="field"><label for="inq-reply">답변 <span class="tag">AI 초안</span></label><textarea id="inq-reply" rows="6"' + (st !== 'new' ? ' readonly' : '') + '>' + esc(draft) + '</textarea></div>'
+      + (res.cites && res.cites.length ? '<div class="row"><span class="muted" style="font-size:12px">함께 보낼 근거</span>' + res.cites.map(function (c, i) { return cite(c, String(i + 1)); }).join('') + '</div>' : '')
+      + (st === 'new' ? '<div class="row" style="justify-content:flex-end"><button class="btn" data-inqesc="' + q.id + '">운영사로 이관</button><button class="btn primary" data-inqok="' + q.id + '">' + ic('send') + '답변 보내기</button></div>' : '<p class="muted" style="margin:0;font-size:12.5px">' + (st === 'answered' ? '참가사에게 답변을 보냈어요.' : '운영사 현장 이슈로 넘겼어요. 운영사 화면에서 처리돼요.') + '</p>')
+      + '</div></div></div>';
+    return h;
+  }
+  function viewOrgMap() {
+    var h = '<div class="page-h"><div><h1>부스 배정 맵</h1><p>Hall C 입실·공실 현황이에요. 공실을 누르면 참가사를 배정할 수 있어요.</p></div></div>';
+    return h + '<div data-hallkey="c">' + mapBlock('c', { selAct: function (b) { return b.st === 'vacant' ? '<button class="btn sm" data-assign="' + b.id + '">참가사 배정</button>' : b.assigned ? '<button class="btn sm" data-unassign="' + b.id + '">배정 취소</button>' : ''; } }) + '</div>';
+  }
+  function viewOrgRelay() {
+    var L = reqAll().filter(function (r) { return r.from === 'org'; });
+    var h = '<div class="page-h"><div><h1>운영사 제출 현황</h1><p>주최사가 운영사에 올린 신청과 승인 상태예요.</p></div><button class="btn primary" data-act="relay">' + ic('send') + '운영사에 새 신청</button></div>';
+    return h + L.map(function (r) { return reqCard(r, 'view'); }).join('');
+  }
+
+  /* ----- 운영사 ----- */
+  function gantt(compact) {
+    var start = new Date('2026-11-01T00:00:00'), N = 61, pos = function (d) { return (new Date(d + 'T00:00:00') - start) / 864e5 / N * 100; };
+    var h = '<div class="gantt"><div class="gh">홀</div><div class="gh row" style="justify-content:space-between"><span>11월</span><span>12월</span><span>12.31</span></div>';
+    D.venueSchedule.forEach(function (row) {
+      h += '<div class="gl">' + row.hall + '</div><div class="gr">' + row.items.map(function (it) {
+        var sd = new Date(new Date(it.s + 'T00:00:00') - it.setup * 864e5), sIso = sd.getFullYear() + '-' + String(sd.getMonth() + 1).padStart(2, '0') + '-' + String(sd.getDate()).padStart(2, '0');
+        var a = pos(sIso), b = pos(it.s), c = pos(it.e) + 100 / N;
+        return '<div class="bar setup" style="left:' + a + '%;width:' + (b - a) + '%" title="설치 ' + it.setup + '일"></div><div class="bar' + (it.ours ? ' ours' : '') + '" style="left:' + b + '%;width:' + (c - b) + '%" title="' + esc(it.n) + ' ' + md(it.s) + '~' + md(it.e) + '">' + (compact ? '' : esc(it.n)) + '</div>';
+      }).join('') + '<div class="today-line" style="left:' + pos(D.today) + '%" title="오늘 11.05"></div></div>';
+    });
+    return h + '</div><div class="legend-row" style="margin-top:8px"><span><i style="background:var(--warn-weak)"></i>설치</span><span><i style="background:var(--accent-weak)"></i>전시</span><span><i style="background:var(--accent)"></i>스마트제조 엑스포</span><span><i style="background:var(--bad)"></i>오늘</span></div>';
+  }
+  function viewOpHome() {
+    var iss = D.issues.filter(function (i) { return issueSt(i) !== 'done'; }), esc2 = allInq().filter(function (q) { return inqSt(q) === 'escalated'; }).length;
+    var h = '<section class="hero"><h1>' + esc(D.roles.operator.name) + '님, 오늘 처리할 승인 ' + reqCount('op') + '건과<br>현장 이슈 ' + iss.length + '건이 있어요.</h1>' + composerHtml('home-q', '시설 규정이나 도면 값을 물어보세요 · 예) Hall C 화물출입구 크기는?') + '</section>';
+    h += '<section class="grid g-4">' + kpi('#op-approvals', '운영사 승인 대기', reqCount('op'), '건', '참가사·주최사 신청', null)
+      + kpi('#op-approvals', '주최사 검토 중', reqCount('org'), '건', '직권 처리 가능', null)
+      + kpi('#op-issues', '현장 이슈', iss.length, '건 진행', '긴급 ' + iss.filter(function (i) { return i.lvl === 'high'; }).length + ' · 이관 문의 ' + esc2, null)
+      + kpi('#op-schedule', '11~12월 행사', D.venueSchedule.reduce(function (n, r) { return n + r.items.length; }, 0), '건', '5개 홀 · 오늘 기준', null) + '</section>';
+    h += '<section class="card"><div class="card-h"><h2>전시장 일정</h2><a class="link-row" href="#op-schedule">크게 보기 →</a></div><div class="card-b">' + gantt(true) + '</div></section>';
+    h += '<section class="grid g-main">' + briefing([
+      { need: true, t: '위험물(LPG) 반입 허가 1건이 승인 대기예요', d: '알파모션 · C-118 시연용. 코엑스 승인 물품 여부와 안전관리 계획 확인이 필요해요.', src: { label: '이용안내서 p.57' }, go: 'op-approvals', btn: '승인함 열기' },
+      { need: true, t: 'Hall B 급배수 누수 · 담당 미배정', d: '푸드테크 쇼(데모) B-214 · 10:40 접수', i: 'alert', go: 'op-issues', btn: '이슈 배정' },
+      { t: '주최사 검토 단계에 하중 초과 의심 신청이 있어요', d: '케이드라이브 천장 배너 180kg > 1Point 150kg. 운영사가 직권으로 반려할 수 있어요.', src: { chunk: 'coex-dwg-hall-c-ceiling-2024#01-rigging' } }
+    ]) + '<div class="card"><div class="card-h"><h2>최근 처리 이력</h2><a class="link-row" href="#op-log">전체 →</a></div><div class="card-b tl">' + logRows().slice(0, 6).map(function (l) { return '<div><i>✓</i><span><b class="tnum">' + l.at + '</b> · ' + esc(l.who) + ' · ' + esc(l.text) + '</span></div>'; }).join('') + '</div></div></section>';
+    return h;
+  }
+  function viewOpApprovals() {
+    var all = reqAll(), tabs = [['op', '승인 대기'], ['org', '주최사 검토 중'], ['done', '처리 완료']];
+    var cnt = { op: reqCount('op'), org: reqCount('org'), done: all.filter(function (r) { var s = reqState(r).stage; return s === 'approved' || s === 'rejected'; }).length };
+    var L = all.filter(function (r) { var s = reqState(r).stage; return opTab === 'done' ? (s === 'approved' || s === 'rejected') : s === opTab; });
+    var nsel = Object.keys(opSel).filter(function (k) { return opSel[k]; }).length;
+    var h = '<div class="page-h"><div><h1>통합 승인함</h1><p>참가사와 주최사가 올린 모든 신청을 최종 승인하거나 반려해요. 주최사 검토 중인 건도 직권으로 처리할 수 있어요.</p></div>' + (opTab !== 'done' ? '<button class="btn primary" data-act="batchok"' + (nsel ? '' : ' disabled') + '>' + ic('check') + '선택 ' + nsel + '건 일괄 승인</button>' : '') + '</div>';
+    h += '<div class="filters">' + tabs.map(function (t) { return '<button data-optab="' + t[0] + '" class="' + (opTab === t[0] ? 'on' : '') + '">' + t[1] + '<em class="tnum">' + cnt[t[0]] + '</em></button>'; }).join('') + '</div>';
+    return h + (L.length ? L.map(function (r) { return reqCard(r, opTab === 'done' ? 'view' : 'op'); }).join('') : '<div class="card"><div class="empty">해당하는 신청이 없어요.</div></div>');
+  }
+  function viewOpSchedule() {
+    return '<div class="page-h"><div><h1>전시장 일정</h1><p>2026년 11~12월 홀별 행사와 설치 기간이에요. 행사명은 스마트제조 엑스포를 빼고 모두 가상이에요.</p></div></div><div class="card"><div class="card-b table-wrap">' + gantt(false) + '</div></div>';
+  }
+  function viewOpMap() {
+    if (!hallSel || !HallMap.HALLS[hallSel]) hallSel = 'c';
+    var h = '<div class="page-h"><div><h1>홀 맵</h1><p>홀별 입실·공실과 동선을 봐요. 화물출입구·편의시설까지 길찾기를 할 수 있어요.</p></div><div class="hall-tabs" role="tablist">'
+      + ['a', 'b', 'c', 'd'].map(function (k) { return '<button role="tab" aria-selected="' + (k === hallSel) + '" data-hall="' + k + '" class="' + (k === hallSel ? 'on' : '') + '">' + HALLS[k].name + '</button>'; }).join('') + '</div></div>';
+    return h + '<div data-hallkey="' + hallSel + '">' + mapBlock(hallSel) + '</div>';
+  }
+  var TEAMS = ['홀매니저실', '전기 협력업체', '설비(급배수) 협력업체', '보안·안전팀', '통신 협력업체'];
+  function viewOpIssues() {
+    var lv = { high: '<span class="pill bad">긴급</span>', mid: '<span class="pill warn">보통</span>', low: '<span class="pill">낮음</span>' };
+    var sp = { new: '<span class="pill bad">미배정</span>', assigned: '<span class="pill info">처리 중</span>', done: '<span class="pill ok">완료</span>' };
+    var h = '<div class="page-h"><div><h1>현장 이슈</h1><p>홀별 현장 문제와 주최사가 넘긴 문의를 담당 팀에 배정하고 닫아요.</p></div></div>';
+    h += '<div class="card"><div class="table-wrap"><table class="stack"><thead><tr><th>이슈</th><th>홀</th><th>등급</th><th>담당</th><th>상태</th><th></th></tr></thead><tbody>'
+      + D.issues.map(function (i) { var st = issueSt(i), team = (S.iss[i.id] || {}).team || i.team; return '<tr><td><div class="t-title">' + esc(i.title) + '</div><div class="t-desc">' + esc(i.ex) + ' · ' + i.at + '</div></td><td data-l="홀">' + i.hall + '</td><td data-l="등급">' + lv[i.lvl] + '</td><td data-l="담당"><label class="sr" for="tm-' + i.id + '">담당 팀</label><select id="tm-' + i.id + '" data-issteam="' + i.id + '"' + (st === 'done' ? ' disabled' : '') + '><option value="">선택</option>' + TEAMS.concat(team && TEAMS.indexOf(team) < 0 ? [team] : []).map(function (t) { return '<option' + (t === team ? ' selected' : '') + '>' + t + '</option>'; }).join('') + '</select></td><td data-l="상태">' + sp[st] + '</td><td>' + (st !== 'done' ? '<button class="btn sm" data-issdone="' + i.id + '">완료 처리</button>' : '') + '</td></tr>'; }).join('') + '</tbody></table></div></div>';
+    var esq = allInq().filter(function (q) { return inqSt(q) === 'escalated'; });
+    h += '<div class="card"><div class="card-h"><h2>주최사가 넘긴 문의</h2><span class="muted" style="font-size:12px">' + esq.length + '건</span></div><div class="card-b" style="display:flex;flex-direction:column;gap:10px">'
+      + (esq.length ? esq.map(function (q) { var res = answer(q.ask); return '<div class="verdict"><span class="ck warn">!</span><div style="flex:1;min-width:0"><b>' + esc(q.q) + '</b><div class="t-desc">' + esc(q.co) + ' · ' + q.at + '</div>' + (res.cites && res.cites.length ? '<div class="row" style="margin-top:6px">' + res.cites.map(function (c, k) { return cite(c, String(k + 1)); }).join('') + '</div>' : '<div class="t-desc" style="margin-top:4px">근거 문서 없음 · 운영사 판단 필요</div>') + '</div><button class="btn sm" data-inqdone="' + q.id + '">답변 완료</button></div>'; }).join('') : '<div class="empty">넘어온 문의가 없어요.</div>') + '</div></div>';
+    return h;
+  }
+  var LOG_SEED = [{ at: '11.04 17:40', who: '운영사', text: '승인 · ㈜한빛로보틱스 · 참가업체 디렉토리 정보' }, { at: '11.04 16:05', who: '주최사', text: '반려 · ㈜한빛로보틱스 · 부스 디자인 도면 (Lay-out)' }, { at: '11.04 11:20', who: '운영사', text: '배정 · Hall A 화물출입구 2 반입 지연 → 홀매니저실' }];
+  function logRows() { return (S.log || []).concat(LOG_SEED); }
+  function viewOpLog() {
+    return '<div class="page-h"><div><h1>처리 이력</h1><p>세 역할이 승인·반려·배정한 기록이에요. 이 브라우저 안에서만 남아요.</p></div></div><div class="card"><div class="table-wrap"><table class="stack"><thead><tr><th>시각</th><th>처리자</th><th>내용</th></tr></thead><tbody>'
+      + logRows().map(function (l) { return '<tr><td data-l="시각" class="tnum">' + l.at + '</td><td data-l="처리자"><span class="role-pill ' + (l.who === '운영사' ? 'op' : l.who === '주최사' ? 'org' : 'ex') + '">' + esc(l.who) + '</span></td><td data-l="내용">' + esc(l.text) + '</td></tr>'; }).join('') + '</tbody></table></div></div>';
+  }
 
   /* ---------- 이벤트 ---------- */
   document.addEventListener('click', function (ev) {
-    var t = ev.target.closest('button,a,[data-src],sup.n'); if (!t) return;
+    var t = ev.target.closest('button,a,[data-src],sup.n,[data-booth],[data-poi]'); if (!t) return;
     var ds = t.dataset;
     if (ds.src) { ev.preventDefault(); openSrc(JSON.parse(ds.src)); return; }
     if (ds.ci) { var p = ds.ci.split(':'), ch = activeChat(); if (ch && ch.msgs[p[0]] && ch.msgs[p[0]].res.cites[p[1]]) openSrc(ch.msgs[p[0]].res.cites[p[1]]); return; }
@@ -630,12 +973,40 @@
     if (ds.chk) { checkSel = ds.chk; render(); return; }
     if (ds.precheck) { checkSel = ds.precheck; go('check'); return; }
     if (ds.cond) { S.cond[ds.cond] = ds.v === '1'; save(); render(); return; }
-    if (ds.hall) { hallSel = ds.hall; render(); return; }
+    if (ds.hall) { hallSel = ds.hall; MS.sel = MS.dest = null; MS.q = ''; soft(); return; }
+    if (ds.lrole) { loginRole = ds.lrole; render(); return; }
+    if (ds.lmode) { S.mode = ds.lmode; save(); render(); return; }
+    if (ds.mm) { MS.mode = ds.mm; soft(); return; }
+    if (ds.mf) { MS.filter = ds.mf; soft(); return; }
+    if (ds.rot) { MS.angle += +ds.rot; if (mapRedraw) mapRedraw(); return; }
+    if (ds.zm) { MS.zoom = Math.max(.6, Math.min(2.5, MS.zoom * +ds.zm)); if (mapRedraw) mapRedraw(); return; }
+    if (ds.dest) { MS.dest = ds.dest; soft(); return; }
+    if (ds.mclear) { MS.dest = null; soft(); return; }
+    if (ds.booth) { MS.sel = ds.booth; soft(); return; }
+    if (ds.poi) { MS.dest = ds.poi; soft(); return; }
+    if (ds.cad) { openCad(ds.cad); return; }
+    if (ds.assign) { assignModal(ds.assign); return; }
+    if (ds.asgo) { var co = $('#as-co').value; S.assign[ds.asgo] = co; logPush('부스 배정 · ' + ds.asgo + ' → ' + co); save(); closeDrawer(); soft(); toast(ds.asgo + ' 부스를 ' + co + '에 배정했어요.'); return; }
+    if (ds.unassign) { delete S.assign[ds.unassign]; logPush('배정 취소 · ' + ds.unassign); save(); soft(); return; }
+    if (ds.rqok) { decide(ds.rqok, true); soft(); toast(S.role === 'organizer' ? '운영사 승인함으로 넘겼어요.' : '승인했어요. 참가사·주최사 화면에 바로 반영돼요.'); return; }
+    if (ds.rqno) { rejectModal(ds.rqno); return; }
+    if (ds.rjgo) { decide(ds.rjgo, false, $('#rj-text').value.trim() || '보완이 필요합니다.'); closeDrawer(); soft(); toast('반려 사유와 근거를 보냈어요.'); return; }
+    if (ds.optab) { opTab = ds.optab; opSel = {}; render(); return; }
+    if (ds.inq) { inqSel = ds.inq; soft(); return; }
+    if (ds.inqok) { S.inq[ds.inqok] = { st: 'answered', reply: $('#inq-reply').value }; logPush('문의 답변 · ' + (allInq().filter(function (q) { return q.id === ds.inqok; })[0] || {}).co); save(); soft(); toast('참가사에게 답변을 보냈어요.'); return; }
+    if (ds.inqesc) { S.inq[ds.inqesc] = { st: 'escalated' }; logPush('문의 이관 → 운영사 · ' + (allInq().filter(function (q) { return q.id === ds.inqesc; })[0] || {}).co); save(); soft(); toast('운영사 현장 이슈로 넘겼어요.'); return; }
+    if (ds.inqdone) { S.inq[ds.inqdone] = { st: 'answered' }; logPush('이관 문의 답변 완료'); save(); soft(); return; }
+    if (ds.issdone) { S.iss[ds.issdone] = Object.assign({}, S.iss[ds.issdone], { st: 'done' }); logPush('이슈 완료 · ' + D.issues.filter(function (i) { return i.id === ds.issdone; })[0].title); save(); soft(); return; }
+    if (ds.nudge) { logPush('독려 알림 · ' + ds.nudge); save(); toast(ds.nudge + '에 서류 제출 독려 알림을 보냈어요. (데모)'); return; }
     if (ds.hallgo) { hallSel = ds.hallgo || hallSel; closeDrawer(); }
     if (ds.dw) { dwSel[hallSel] = ds.dw; render(); return; }
     if (ds.doc) { openDoc(ds.doc); return; }
     if (ds.bt) { if (ds.bt === 'scan') { toast('데모: 카메라 대신 명함 사진 업로드로 연결될 예정이에요.'); return; } boothTab = ds.bt; render(); return; }
-    if (ds.upload) { S.sub[ds.upload] = 'submitted'; save(); render(); toast('데모: 파일을 올린 것으로 표시했어요. 실제 업로드는 연결 전이에요.'); return; }
+    if (ds.upload) {
+      var sid = ds.upload, sb = D.submissions.filter(function (x) { return x.id === sid; })[0], has = reqAll().filter(function (x) { return x.id === sid; }).length;
+      if (!has && sb) S.extraReq.push({ id: sid, from: 'ex', co: '㈜한빛로보틱스', booth: 'C-228', type: sb.title.split(/[ (]/)[0], title: sb.title, file: sb.file || (sb.title + '.pdf'), at: '11.05', due: sb.due, stage: 'org', src: sb.src });
+      S.req[sid] = { stage: 'org' }; S.sub[sid] = 'submitted'; save(); soft(); toast('제출했어요. 주최사 1차 검토 → 운영사 승인 순서로 진행돼요.'); return;
+    }
     if (ds.copy) { var txt = ds.copy; try { navigator.clipboard.writeText(txt).then(function () { toast('복사했어요: ' + txt); }, function () { toast('번호를 길게 눌러 복사하세요: ' + txt); }); } catch (e) { toast('번호를 길게 눌러 복사하세요: ' + txt); } return; }
     var a = ds.act;
     if (!a) return;
@@ -644,12 +1015,20 @@
     else if (a === 'nudge-x') { S.nudge = false; save(); renderFab(route()); }
     else if (a === 'newchat') { S.active = null; save(); paintThreads(); }
     else if (a === 'menu') { $('#side').classList.toggle('open'); }
-    else if (a === 'theme') { var r2 = document.documentElement, dark = r2.dataset.theme ? r2.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; r2.dataset.theme = dark ? 'light' : 'dark'; }
+    else if (a === 'theme') { S.theme = S.theme === 'dark' ? 'light' : 'dark'; save(); applyTheme(); if (mapRedraw) mapRedraw(); }
+    else if (a === 'logout') { S.role = null; save(); history.replaceState(null, '', location.pathname); render(); }
+    else if (a === 'mclose') closeDrawer();
+    else if (a === 'inquiry') inquiryModal();
+    else if (a === 'iqsend') { var v = $('#iq-text').value.trim(); if (!v) { $('#iq-text').focus(); return; } S.sent.push({ id: 's' + Date.now(), co: '㈜한빛로보틱스', who: '김서윤', at: nowStr(), q: v, ask: v, st: 'new' }); logPush('문의 등록 · ㈜한빛로보틱스'); save(); closeDrawer(); toast('주최사 문의함에 보냈어요. 주최사로 로그인하면 확인할 수 있어요.'); }
+    else if (a === 'relay') relayModal();
+    else if (a === 'rlsend') { var ty = $('#rl-type').value, ti = $('#rl-title').value.trim() || ty; S.extraReq.push({ id: 'x' + Date.now(), from: 'org', co: '㈜스마트제조산업전람', booth: '전체', type: ty, title: ti, file: '(데모 첨부)', at: '11.05', due: '2026-11-23', stage: 'op', src: { label: '이용안내서 p.26' } }); logPush('운영사 신청 · ' + ti); save(); closeDrawer(); soft(); toast('운영사 통합 승인함에 올렸어요.'); }
+    else if (a === 'batchok') { var ids = Object.keys(opSel).filter(function (k) { return opSel[k]; }); ids.forEach(function (id) { decide(id, true); }); opSel = {}; soft(); toast(ids.length + '건을 승인했어요.'); }
+    else if (a === 'nudgeall') { var late = D.exhibitorsList.filter(function (e) { return e.late; }).map(function (e) { return e.co; }); logPush('일괄 독려 · ' + late.join(', ')); save(); toast(late.join(', ') + '에 독려 알림을 보냈어요. (데모)'); }
     else if (t.id === 'reset' || a === 'reset') {}
     else toast({ attach: '데모: 파일 첨부는 알림으로만 보여줘요.', forms: '데모: 양식 일괄 다운로드는 연결 전이에요.', view: '데모: 원본 파일 열기는 연결 전이에요.', reupload: '데모: 점검할 파일은 고정 예시를 써요.', report: '데모: 점검 요약 공유는 다음 단계에서 연결해요.', invite: '데모: 담당자 초대는 연결 전이에요.', pdf: '데모: 원문 PDF 열기는 연결 전이에요.', scan: '데모: 명함 스캔은 사진 업로드로 연결될 예정이에요.', req: '데모: 현장 요청을 접수한 것처럼 보여줘요.' }[a] || '데모 동작이에요.');
   });
   document.addEventListener('click', function (ev) {
-    if (ev.target.closest('#reset')) { S = fresh(); save(); hallSel = null; miniOpen = false; location.hash = 'home'; render(); toast('데모 데이터를 처음 상태로 돌렸어요.'); }
+    if (ev.target.closest('#reset')) { var keepR = S.role, keepT = S.theme; S = fresh(); S.role = keepR; S.theme = keepT; save(); hallSel = null; miniOpen = false; MS.sel = MS.dest = null; location.hash = keepR === 'organizer' ? 'org-home' : keepR === 'operator' ? 'op-home' : 'home'; render(); toast('데모 데이터를 처음 상태로 돌렸어요.'); }
     if (ev.target.closest('#apply-submit') && !ev.target.closest('#apply-submit').disabled) toast('데모: 신청서를 제출한 것으로 표시했어요. 실제 제출은 주최사 시스템에서 해요.');
     if (ev.target.closest('#drawing')) $('#drawing').classList.toggle('zoom');
     if (ev.target.id === 'scrim') closeDrawer();
@@ -658,6 +1037,18 @@
     var t = ev.target;
     if (t.dataset.task) { S.done[t.dataset.task] = t.checked; save(); render(); }
     if (t.dataset.pre) { S.pre[t.dataset.pre] = t.checked; save(); render(); }
+    if (t.dataset.rqsel) { opSel[t.dataset.rqsel] = t.checked; soft(); }
+    if (t.dataset.issteam) { var iid = t.dataset.issteam; S.iss[iid] = { st: t.value ? 'assigned' : 'new', team: t.value }; if (t.value) logPush('이슈 배정 · ' + D.issues.filter(function (i) { return i.id === iid; })[0].title + ' → ' + t.value); save(); soft(); }
+  });
+  document.addEventListener('submit', function (ev) {
+    var f = ev.target; ev.preventDefault();
+    if (f.id === 'login-form') { S.role = loginRole; save(); var home = loginRole === 'organizer' ? 'org-home' : loginRole === 'operator' ? 'op-home' : (isPre() ? 'apply' : 'home'); if (location.hash === '#' + home) render(); else location.hash = home; render(); return; }
+    if (f.id === 'booth-find') {
+      var v = $('#booth-q').value.trim().toUpperCase().replace(/\s/g, ''), key = (f.closest('[data-hallkey]') || {}).dataset ? f.closest('[data-hallkey]').dataset.hallkey : 'c';
+      if (/^\d+$/.test(v)) v = key.toUpperCase() + '-' + v;
+      MS.q = v; var b = hmModel(key).booths.filter(function (x) { return x.id === v; })[0];
+      if (b) { MS.sel = b.id; MS.dest = 'booth:' + b.id; soft(); } else toast(v + ' 부스를 찾지 못했어요. 예) ' + key.toUpperCase() + '-112');
+    }
   });
   document.addEventListener('keydown', function (ev) {
     if (ev.key === 'Escape') closeDrawer();
@@ -670,8 +1061,10 @@
     if (ev.target.id === 'side-search' && ev.key === 'Enter' && ev.target.value.trim()) { var v = ev.target.value; ev.target.value = ''; S.active = null; go('assistant'); setTimeout(function () { ask(v, { fresh: true }); }, 30); }
   });
 
-  var VIEWS = { home: function () { return VIEWS_home(); }, apply: viewApply, schedule: viewSchedule, submissions: viewSubmissions, check: viewCheck, assistant: viewAssistant, library: viewLibrary, halls: viewHalls, company: viewCompany, booth: viewBooth };
-  var AFTER = { assistant: paintThreads };
+  var VIEWS = { home: function () { return VIEWS_home(); }, apply: viewApply, schedule: viewSchedule, submissions: viewSubmissions, check: viewCheck, assistant: viewAssistant, library: viewLibrary, halls: viewHalls, company: viewCompany, booth: viewBooth,
+    'org-home': viewOrgHome, 'org-exhibitors': viewOrgExhibitors, 'org-review': viewOrgReview, 'org-inbox': viewOrgInbox, 'org-map': viewOrgMap, 'org-relay': viewOrgRelay,
+    'op-home': viewOpHome, 'op-approvals': viewOpApprovals, 'op-schedule': viewOpSchedule, 'op-map': viewOpMap, 'op-issues': viewOpIssues, 'op-log': viewOpLog };
+  var AFTER = { assistant: paintThreads, halls: mapAfter, 'org-map': mapAfter, 'op-map': mapAfter };
   window.addEventListener('hashchange', render);
   render();
 })();

@@ -10,8 +10,9 @@
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
-<div class="banner" role="note"><span><b>EXPO DESK 서비스 데모</b> · 회사·전시회·주최사는 가상, COEX 시설·도면 값은 AISAP 정제 데이터셋 · 화면 기준일 2026.11.05</span><button type="button" data-act="theme">밝게/어둡게</button></div>
-<div class="app">
+<div class="banner" role="note"><span><b>EXPO DESK 서비스 데모</b> · 회사·전시회·계정은 가상 · COEX 시설·도면 값은 AISAP 정제 데이터셋 · 기준일 2026.11.05</span><button type="button" class="theme-btn" id="theme-btn" data-act="theme" aria-label="나이트 모드로 바꾸기">☀️</button></div>
+<div id="login" hidden></div>
+<div class="app" hidden>
   <aside class="side" id="side" aria-label="사이드바"></aside>
   <div class="main" id="main">
     <header class="topbar">
@@ -30,6 +31,7 @@
 <div class="toast" id="toast" role="status" hidden></div>
 <script src="data/knowledge.js"></script>
 <script src="data/demo.js"></script>
+<script src="hallmap.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
